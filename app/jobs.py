@@ -13,7 +13,6 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-
 from PIL import Image
 from pypdf import PdfReader
 
@@ -87,6 +86,16 @@ def parse_page_range(value: str, total_pages: int) -> Tuple[str, int]:
     return value, len(pages)
 
 
+def filter_page_set(page_numbers: List[int], page_set: str = "all") -> List[int]:
+    """Filter zero-based page numbers using the user's one-based odd/even choice."""
+    if page_set not in {"all", "odd", "even"}:
+        raise JobError("page_set must be one of all, odd, or even")
+    if page_set == "all":
+        return page_numbers
+    parity = 1 if page_set == "odd" else 0
+    return [page for page in page_numbers if (page + 1) % 2 == parity]
+
+
 class JobStore:
     def __init__(self, db_path: Path):
         self.db_path = db_path
@@ -127,12 +136,19 @@ class JobStore:
                     color_mode TEXT DEFAULT 'monochrome',
                     copies INTEGER DEFAULT 1,
                     page_range TEXT DEFAULT 'all',
+                    orientation TEXT DEFAULT 'portrait',
+                    page_set TEXT DEFAULT 'all',
                     cups_job_id TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(jobs)").fetchall()}
+            if "orientation" not in columns:
+                connection.execute("ALTER TABLE jobs ADD COLUMN orientation TEXT DEFAULT 'portrait'")
+            if "page_set" not in columns:
+                connection.execute("ALTER TABLE jobs ADD COLUMN page_set TEXT DEFAULT 'all'")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(session_id, created_at)")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_jobs_state ON jobs(state, created_at)")
             connection.execute(
@@ -584,9 +600,13 @@ class PrintBackend:
             str(job["copies"]),
             "-o",
             f"{self.settings.color_option}={color}",
+            "-o",
+            f"orientation-requested={'3' if job.get('orientation', 'portrait') == 'landscape' else '5'}",
         ]
         if job["page_range"] != "all":
             command.extend(["-o", f"page-ranges={job['page_range']}"])
+        if job.get("page_set", "all") != "all":
+            command.extend(["-o", f"page-set={job['page_set']}"])
         command.append(job["pdf_path"])
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=30, check=False, env=self._cups_env())
@@ -630,12 +650,16 @@ class PrintBackend:
             devmode.Fields |= win32con.DM_COLOR | win32con.DM_COPIES
             devmode.Color = win32con.DMCOLOR_COLOR if job["color_mode"] == "color" else win32con.DMCOLOR_MONOCHROME
             devmode.Copies = 1
-            # Use pywin32's printer-specific DC factory. The win32gui.CreateDC
-            # wrapper cannot safely receive a DEVMODE object from older HP drivers.
+            # pywin32's CreatePrinterDC accepts only the printer name on some
+            # versions, so use the driver's printer DC and orient the rendered
+            # page image below. This avoids passing an unsupported fourth
+            # argument that causes the Windows spooler call to fail.
             dc = win32ui.CreateDC()
             dc.CreatePrinterDC(self.settings.queue_name)
             document = fitz.open(str(pdf_path))
-            page_numbers = self._windows_page_numbers(job["page_range"], len(document))
+            page_numbers = self._windows_page_numbers(job["page_range"], len(document), job.get("page_set", "all"))
+            if not page_numbers:
+                raise JobError("所选范围没有符合条件的页面")
             queued_job_ids = self._windows_queue_job_ids(win32print, printer)
             job_id = dc.StartDoc(f"TCP Printer {job['public_id']}")
             started = True
@@ -647,6 +671,8 @@ class PrintBackend:
                     image_mode = "RGB" if job["color_mode"] == "color" else "L"
                     pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), colorspace=colorspace, alpha=False)
                     image = Image.frombytes(image_mode, (pixmap.width, pixmap.height), pixmap.samples)
+                    if job.get("orientation", "portrait") == "landscape" and image.height > image.width:
+                        image = image.rotate(90, expand=True)
                     width = dc.GetDeviceCaps(win32con.HORZRES)
                     height = dc.GetDeviceCaps(win32con.VERTRES)
                     ratio = min(width / image.width, height / image.height)
@@ -684,9 +710,9 @@ class PrintBackend:
                 win32print.ClosePrinter(printer)
 
     @staticmethod
-    def _windows_page_numbers(page_range: str, total_pages: int) -> List[int]:
+    def _windows_page_numbers(page_range: str, total_pages: int, page_set: str = "all") -> List[int]:
         if page_range == "all":
-            return list(range(total_pages))
+            return filter_page_set(list(range(total_pages)), page_set)
         pages = []
         for item in page_range.split(","):
             if "-" in item:
@@ -694,7 +720,8 @@ class PrintBackend:
                 pages.extend(range(start - 1, end))
             else:
                 pages.append(int(item) - 1)
-        return pages
+        unique_pages = list(dict.fromkeys(pages))
+        return filter_page_set(unique_pages, page_set)
 
     @staticmethod
     def _windows_queue_job_ids(win32print, printer_handle) -> set:

@@ -9,10 +9,12 @@ let currentJob = null;
 let selectedFile = null;
 let colorMode = "monochrome";
 let rangeMode = "all";
+let orientationMode = "portrait";
+let pageSet = "all";
 let pollTimer = null;
 
 const byId = (id) => document.getElementById(id);
-const screens = ["upload", "processing", "settings", "job", "result"];
+const screens = ["service", "upload", "processing", "settings", "job", "result"];
 
 function showScreen(name) {
   screens.forEach((screen) => byId(`screen-${screen}`).classList.toggle("active", screen === name));
@@ -51,7 +53,10 @@ function selectedButton(container, value) {
 
 function pageCountForRange() {
   if (!currentJob) return 1;
-  if (rangeMode === "all") return currentJob.pages;
+  if (rangeMode === "all") {
+    if (pageSet === "all") return currentJob.pages;
+    return Math.ceil((currentJob.pages - (pageSet === "even" ? 1 : 0)) / 2);
+  }
   const raw = byId("page-range").value.trim();
   if (!raw) return 0;
   const pages = new Set();
@@ -68,7 +73,8 @@ function pageCountForRange() {
       pages.add(page);
     }
   }
-  return pages.size;
+  if (pageSet === "all") return pages.size;
+  return [...pages].filter((page) => page % 2 === (pageSet === "odd" ? 1 : 0)).length;
 }
 
 function updateEstimate() {
@@ -80,7 +86,9 @@ function updateEstimate() {
   const copies = Math.max(1, Number(byId("copies").value) || 1);
   const sheets = Math.max(0, pageCount) * copies;
   const color = colorMode === "color" ? "彩色" : "黑白";
-  byId("estimate").textContent = `${sheets} 张${color} A4`;
+  const orientation = orientationMode === "landscape" ? "横向" : "纵向";
+  const pageSetLabel = pageSet === "odd" ? "奇数页" : pageSet === "even" ? "偶数页" : "全部页面";
+  byId("estimate").textContent = `${sheets} 张${color} A4 ${orientation} · ${pageSetLabel}`;
 }
 
 function renderSettings(job) {
@@ -92,8 +100,12 @@ function renderSettings(job) {
   byId("copies").value = "1";
   colorMode = "monochrome";
   rangeMode = "all";
+  orientationMode = "portrait";
+  pageSet = "all";
   selectedButton(byId("color-mode"), colorMode);
   selectedButton(byId("range-mode"), rangeMode);
+  selectedButton(byId("orientation-mode"), orientationMode);
+  selectedButton(byId("page-set"), pageSet);
   byId("custom-range-wrap").classList.add("hidden");
   updateEstimate();
   showScreen("settings");
@@ -120,7 +132,9 @@ function renderJob(job) {
   byId("job-title").textContent = isPending ? "任务已加入打印队列" : formatState(job.state);
   byId("job-message").textContent = job.message || "";
   const color = job.color_mode === "color" ? "彩色" : "黑白";
-  byId("job-card").innerHTML = `<div><strong>${escapeHtml(job.file_name)}</strong><span class="muted">任务 #${escapeHtml(job.public_id)} · ${job.pages} 页 · ${color} · ${job.copies} 份</span></div><strong>${formatState(job.state)}</strong>`;
+  const orientation = job.orientation === "landscape" ? "横向" : "纵向";
+  const pageSetLabel = job.page_set === "odd" ? "奇数页" : job.page_set === "even" ? "偶数页" : "全部页面";
+  byId("job-card").innerHTML = `<div><strong>${escapeHtml(job.file_name)}</strong><span class="muted">任务 #${escapeHtml(job.public_id)} · ${job.pages} 页 · ${color} · ${orientation} · ${pageSetLabel} · ${job.copies} 份</span></div><strong>${formatState(job.state)}</strong>`;
   const steps = ["已提交", "转换完成", "等待打印", "正在打印", "已发送至打印机"];
   const current = { pending: 2, printing: 3, completed: 4, cancelled: 2, stopped: 3, failed: 2 }[job.state] ?? 0;
   byId("timeline").innerHTML = steps.map((step, index) => `<li class="${index < current ? "complete" : ""} ${index === current ? "current" : ""}">${step}</li>`).join("");
@@ -235,6 +249,8 @@ async function submitJob() {
     color_mode: colorMode,
     copies: Math.max(1, Number(byId("copies").value) || 1),
     page_range: rangeMode === "custom" ? byId("page-range").value.trim() : "all",
+    orientation: orientationMode,
+    page_set: pageSet,
   };
   const button = byId("submit-job");
   button.disabled = true;
@@ -269,6 +285,10 @@ async function refreshPrinterStatus() {
 }
 
 byId("file-input").addEventListener("change", (event) => chooseFile(event.target.files[0]));
+byId("choose-print").addEventListener("click", () => {
+  byId("printer-status").classList.remove("hidden");
+  showScreen("upload");
+});
 byId("remove-file").addEventListener("click", resetToUpload);
 byId("start-upload").addEventListener("click", upload);
 byId("drop-zone").addEventListener("dragover", (event) => { event.preventDefault(); byId("drop-zone").classList.add("dragging"); });
@@ -277,6 +297,8 @@ byId("drop-zone").addEventListener("drop", (event) => { event.preventDefault(); 
 byId("drop-zone").addEventListener("click", (event) => { if (event.target.id !== "file-input") byId("file-input").click(); });
 byId("color-mode").addEventListener("click", (event) => { if (!event.target.dataset.value) return; colorMode = event.target.dataset.value; selectedButton(byId("color-mode"), colorMode); updateEstimate(); });
 byId("range-mode").addEventListener("click", (event) => { if (!event.target.dataset.value) return; rangeMode = event.target.dataset.value; selectedButton(byId("range-mode"), rangeMode); byId("custom-range-wrap").classList.toggle("hidden", rangeMode !== "custom"); updateEstimate(); });
+byId("orientation-mode").addEventListener("click", (event) => { if (!event.target.dataset.value) return; orientationMode = event.target.dataset.value; selectedButton(byId("orientation-mode"), orientationMode); updateEstimate(); });
+byId("page-set").addEventListener("click", (event) => { if (!event.target.dataset.value) return; pageSet = event.target.dataset.value; selectedButton(byId("page-set"), pageSet); updateEstimate(); });
 byId("page-range").addEventListener("input", updateEstimate);
 byId("copies").addEventListener("input", updateEstimate);
 byId("copies-minus").addEventListener("click", () => { byId("copies").value = Math.max(1, Number(byId("copies").value) - 1); updateEstimate(); });

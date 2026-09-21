@@ -6,3 +6,4 @@ pypdf==5.1.0
 Pillow==11.0.0
 pywin32==308; platform_system == "Windows"
 PyMuPDF==1.25.1; platform_system == "Windows"
+bcrypt==4.2.1

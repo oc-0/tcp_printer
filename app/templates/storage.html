@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>资料库 - 登录</title>
+  <link rel="stylesheet" href="/static/styles.css?v=11">
+  <link rel="stylesheet" href="/static/storage.css?v=2">
+</head>
+<body class="storage-page">
+  <header class="app-header storage-header">
+    <a class="brand" href="/" aria-label="返回服务选择">
+      <img class="brand-logo" src="/static/brand/tcp-team-logo.png" alt="TCP Technical Critical Point">
+      <span class="storage-brand-name">资料库</span>
+    </a>
+  </header>
+  <main class="storage-auth-shell">
+    <section class="storage-auth-panel" aria-labelledby="storage-login-title">
+      <h1 id="storage-login-title">资料库</h1>
+      <form id="storage-login-form" novalidate>
+        <label for="student-id">学号</label>
+        <input id="student-id" name="student_id" autocomplete="username" required>
+        <label for="storage-password">密码</label>
+        <input id="storage-password" name="password" type="password" autocomplete="current-password" required>
+        <p class="storage-error" id="storage-login-error" role="alert"></p>
+        <button class="primary-button" type="submit">登录</button>
+      </form>
+      <a class="storage-admin-login-toggle" id="storage-admin-login-toggle" href="?mode=admin">管理员登录</a>
+      <form class="hidden" id="admin-login-form" novalidate>
+        <label for="admin-login-student-id">管理员学号</label>
+        <input id="admin-login-student-id" autocomplete="username" required>
+        <label for="admin-login-password">密码</label>
+        <input id="admin-login-password" type="password" autocomplete="current-password" required>
+        <label for="admin-login-token">管理员令牌</label>
+        <input id="admin-login-token" type="password" autocomplete="off" required>
+        <p class="storage-error" id="admin-login-error" role="alert"></p>
+        <button class="primary-button" type="submit">进入管理中心</button>
+      </form>
+      <form class="hidden" id="storage-password-form" novalidate>
+        <p class="muted">首次登录需要设置新密码。</p>
+        <label for="current-password">当前密码</label>
+        <input id="current-password" type="password" autocomplete="current-password" required>
+        <label for="new-password">新密码</label>
+        <input id="new-password" type="password" autocomplete="new-password" minlength="6" required>
+        <p class="storage-error" id="storage-password-error" role="alert"></p>
+        <button class="primary-button" type="submit">保存新密码</button>
+      </form>
+    </section>
+  </main>
+  <script src="/static/storage-login.js?v=5"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 import os
+from typing import Optional
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -39,10 +40,18 @@ class Settings:
     cups_wait_seconds: int
     retention_hours: int
     admin_token: str
+    admin_student_id: str = ""
+    admin_password: str = ""
     office_converter: str = "auto"
     windows_print_dpi: int = 300
     windows_wait_seconds: int = 900
     windows_stall_seconds: int = 60
+    # None means repository uploads are not capped by application settings.
+    repository_max_upload_bytes: Optional[int] = None
+    # None means the repository has no aggregate capacity quota.
+    repository_quota_bytes: Optional[int] = None
+    storage_session_hours: int = 24
+    repository_deleted_retention_hours: int = 24 * 7
 
 
 def get_settings() -> Settings:
@@ -54,6 +63,7 @@ def get_settings() -> Settings:
     office_converter = os.getenv("TCP_PRINTER_OFFICE_CONVERTER", "auto").strip().lower()
     if office_converter not in {"auto", "word", "libreoffice"}:
         raise ValueError("TCP_PRINTER_OFFICE_CONVERTER must be auto, word, or libreoffice")
+    retention_hours = max(1, int(os.getenv("TCP_PRINTER_RETENTION_HOURS", "24")))
     return Settings(
         mode=os.getenv("TCP_PRINTER_MODE", "dry-run").strip().lower(),
         queue_name=os.getenv("TCP_PRINTER_QUEUE", "CP1025").strip(),
@@ -67,10 +77,16 @@ def get_settings() -> Settings:
         reload=env_flag("TCP_PRINTER_RELOAD"),
         max_upload_bytes=int(os.getenv("TCP_PRINTER_MAX_UPLOAD_MB", "200")) * 1024 * 1024,
         cups_wait_seconds=int(os.getenv("TCP_PRINTER_CUPS_WAIT_SECONDS", "900")),
-        retention_hours=max(1, int(os.getenv("TCP_PRINTER_RETENTION_HOURS", "24"))),
+        retention_hours=retention_hours,
         admin_token=os.getenv("TCP_PRINTER_ADMIN_TOKEN", "").strip(),
+        admin_student_id=os.getenv("TCP_PRINTER_ADMIN_STUDENT_ID", "").strip(),
+        admin_password=os.getenv("TCP_PRINTER_ADMIN_PASSWORD", ""),
         office_converter=office_converter,
         windows_print_dpi=max(72, min(600, int(os.getenv("TCP_PRINTER_WINDOWS_PRINT_DPI", "300")))),
         windows_wait_seconds=max(30, int(os.getenv("TCP_PRINTER_WINDOWS_WAIT_SECONDS", "900"))),
         windows_stall_seconds=max(15, int(os.getenv("TCP_PRINTER_WINDOWS_STALL_SECONDS", "60"))),
+        repository_max_upload_bytes=None,
+        repository_quota_bytes=None,
+        storage_session_hours=max(1, int(os.getenv("TCP_PRINTER_STORAGE_SESSION_HOURS", "24"))),
+        repository_deleted_retention_hours=retention_hours,
     )

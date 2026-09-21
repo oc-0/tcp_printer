@@ -4,21 +4,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>自助打印</title>
-  <link rel="stylesheet" href="/static/styles.css?v=8">
+  <link rel="stylesheet" href="/static/styles.css?v=12">
 </head>
-<body>
+<body class="printer-page">
   <header class="app-header">
     <a class="brand" href="/" aria-label="TCP 战队自助打印，返回上传文件">
-      <img class="brand-logo" src="/static/brand/tcp-logo.jpg" alt="TCP 战队">
+      <img class="brand-logo" src="/static/brand/tcp-team-logo.png" alt="TCP Technical Critical Point">
     </a>
-    <div class="printer-status" id="printer-status" aria-live="polite">
+    <div class="printer-status hidden" id="printer-status" aria-live="polite">
       <span class="status-dot"></span>
       <span id="printer-status-label">打印机在线</span>
     </div>
   </header>
 
   <main class="app-shell">
-    <section class="screen active" id="screen-upload" aria-labelledby="upload-title">
+    <section class="screen active" id="screen-service" aria-labelledby="service-title">
+      <div class="service-layout">
+        <img class="service-logo" src="/static/brand/tcp-team-logo.png" alt="TCP Technical Critical Point 队标">
+        <h1 id="service-title">选择服务</h1>
+        <div class="service-choices">
+          <button class="service-choice service-choice-primary" id="choose-print" type="button">打印服务</button>
+          <a class="service-choice" id="choose-storage" href="/storage">资料库服务</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen" id="screen-upload" aria-labelledby="upload-title">
       <div class="upload-layout">
         <div>
           <h1 id="upload-title">上传要打印的文件</h1>
@@ -97,6 +108,21 @@
                 <small class="error-text hidden" id="range-error"></small>
               </label>
             </fieldset>
+            <fieldset>
+              <legend>打印方向</legend>
+              <div class="segmented-control" id="orientation-mode">
+                <button class="selected" data-value="portrait">纵向</button>
+                <button data-value="landscape">横向</button>
+              </div>
+            </fieldset>
+            <fieldset>
+              <legend>打印页</legend>
+              <div class="segmented-control" id="page-set">
+                <button class="selected" data-value="all">全部页面</button>
+                <button data-value="odd">奇数页</button>
+                <button data-value="even">偶数页</button>
+              </div>
+            </fieldset>
             <div class="read-only-row"><span>纸张</span><strong>A4</strong></div>
             <div class="read-only-row"><span>打印方式</span><strong>单面打印</strong></div>
             <div class="job-summary">
@@ -145,6 +171,6 @@
       </div>
     </div>
   </div>
-  <script src="/static/app.js?v=7"></script>
+  <script src="/static/app.js?v=9"></script>
 </body>
 </html>

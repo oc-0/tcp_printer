@@ -4,10 +4,11 @@ import unittest
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.config import get_settings
-from app.jobs import FileConverter, JobError, JobStore, PrintBackend, parse_page_range, validate_source_file
+from app.jobs import FileConverter, JobError, JobStore, PrintBackend, filter_page_set, parse_page_range, validate_source_file
 
 
 class PageRangeTests(unittest.TestCase):
@@ -16,6 +17,12 @@ class PageRangeTests(unittest.TestCase):
 
     def test_deduplicates_pages(self):
         self.assertEqual(parse_page_range("1-3, 2, 5", 6), ("1-3,2,5", 4))
+
+    def test_filters_odd_and_even_pages(self):
+        pages = list(range(5))
+        self.assertEqual(filter_page_set(pages, "odd"), [0, 2, 4])
+        self.assertEqual(filter_page_set(pages, "even"), [1, 3])
+        self.assertEqual(PrintBackend._windows_page_numbers("2-5", 5, "odd"), [2, 4])
 
     def test_rejects_page_outside_document(self):
         with self.assertRaisesRegex(ValueError, "超出"):
@@ -38,6 +45,14 @@ class FileValidationTests(unittest.TestCase):
 
 
 class QueueTests(unittest.TestCase):
+    def test_new_jobs_default_to_portrait_and_can_store_landscape(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = JobStore(Path(directory) / "printer.db")
+            job = store.create_draft("session", "demo.pdf", Path(directory) / "demo.pdf")
+            self.assertEqual(job["orientation"], "portrait")
+            self.assertEqual(job["page_set"], "all")
+            self.assertEqual(store.update(job["id"], orientation="landscape")["orientation"], "landscape")
+
     def test_queue_pause_state_is_persistent(self):
         with tempfile.TemporaryDirectory() as directory:
             store = JobStore(Path(directory) / "printer.db")
@@ -146,6 +161,28 @@ class WindowsPrintTests(unittest.TestCase):
     def test_keeps_none_when_windows_driver_does_not_return_a_job_id(self):
         backend = PrintBackend(replace(get_settings(), mode="windows"))
         self.assertIsNone(backend._windows_submitted_job_id(None, None, set(), None))
+
+
+class CupsPrintTests(unittest.TestCase):
+    @patch("app.jobs.subprocess.run")
+    def test_passes_landscape_to_cups(self, run):
+        run.return_value = SimpleNamespace(returncode=0, stdout="request id is CP1025-42", stderr="")
+        backend = PrintBackend(replace(get_settings(), mode="cups", queue_name="CP1025"))
+        with tempfile.TemporaryDirectory() as directory:
+            pdf_path = Path(directory) / "document.pdf"
+            pdf_path.write_bytes(b"%PDF-1.7\n")
+            job = {
+                "pdf_path": str(pdf_path),
+                "color_mode": "monochrome",
+                "copies": 2,
+                "page_range": "1-2",
+                "orientation": "landscape",
+                "page_set": "odd",
+            }
+            self.assertEqual(backend.submit(job), "CP1025-42")
+        command = run.call_args.args[0]
+        self.assertIn("orientation-requested=3", command)
+        self.assertIn("page-set=odd", command)
 
 
 if __name__ == "__main__":

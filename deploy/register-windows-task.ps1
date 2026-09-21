@@ -8,21 +8,25 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $pythonPath = Join-Path $projectRoot ".venv\Scripts\python.exe"
 
 if (-not (Test-Path -LiteralPath $pythonPath)) {
-    throw "未找到虚拟环境 Python：$pythonPath"
+    throw "Virtual environment Python was not found: $pythonPath"
 }
 
 if ($Remove) {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Output "已删除计划任务：$taskName"
+    Write-Output "Removed scheduled task: $taskName"
     exit 0
 }
 
 $userId = "$env:USERDOMAIN\$env:USERNAME"
 $action = New-ScheduledTaskAction -Execute $pythonPath -Argument "run.py" -WorkingDirectory $projectRoot
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
-$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType InteractiveToken -RunLevel Highest
+# New-ScheduledTaskPrincipal uses the PowerShell enum name "Interactive".
+# "InteractiveToken" is accepted by schtasks.exe but not by this cmdlet.
+# Word COM and the local printer do not require elevation; Limited keeps the
+# task usable for a normal desktop user and avoids unnecessary UAC prompts.
+$principal = New-ScheduledTaskPrincipal -UserId $userId -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero)
 
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "TCP Printer Windows 自助打印服务" -Force | Out-Null
-Write-Output "已注册计划任务：$taskName"
-Write-Output "登录 $userId 后会自动启动；可用 Start-ScheduledTask -TaskName '$taskName' 立即启动。"
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "TCP Printer Windows self-service print" -Force | Out-Null
+Write-Output "Registered scheduled task: $taskName"
+Write-Output "It starts when $userId logs on. Run Start-ScheduledTask -TaskName '$taskName' to start it now."

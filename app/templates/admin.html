@@ -3,40 +3,143 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>打印服务管理</title>
-  <link rel="stylesheet" href="/static/styles.css?v=6">
-  <link rel="stylesheet" href="/static/admin.css?v=2">
+  <title>管理中心</title>
+  <link rel="stylesheet" href="/static/styles.css?v=11">
+  <link rel="stylesheet" href="/static/admin.css?v=12">
 </head>
 <body>
   <header class="app-header">
-    <a class="brand" href="/" aria-label="返回自助打印">
-      <img class="brand-logo" src="/static/brand/tcp-logo.jpg" alt="TCP 战队">
+    <a class="brand" href="/" aria-label="返回服务选择">
+      <img class="brand-logo" src="/static/brand/tcp-team-logo.png" alt="TCP Technical Critical Point">
     </a>
-    <strong>打印服务管理</strong>
+    <strong>管理中心</strong>
   </header>
   <main class="admin-shell">
     <section class="admin-auth" id="auth-panel">
+      <label for="admin-student-id">管理员学号</label>
+      <input id="admin-student-id" autocomplete="username" placeholder="输入管理员学号">
+      <label for="admin-password">密码</label>
+      <input id="admin-password" type="password" autocomplete="current-password" placeholder="输入管理员密码">
       <label for="admin-token">管理员令牌</label>
       <div class="admin-auth-row">
-        <input id="admin-token" type="password" autocomplete="off" placeholder="输入 .env 中的 TCP_PRINTER_ADMIN_TOKEN">
+        <input id="admin-token" type="password" autocomplete="off" placeholder="输入 TCP_PRINTER_ADMIN_TOKEN">
         <button class="primary-button" id="save-token" type="button">进入管理</button>
       </div>
       <p class="muted" id="auth-error"></p>
     </section>
     <section class="admin-dashboard hidden" id="dashboard">
+      <div class="admin-dashboard-layout">
+      <aside class="admin-sidebar" aria-label="管理导航">
+        <p class="admin-sidebar-label">工作区</p>
+        <a class="admin-sidebar-link active" href="#overview" data-admin-page="overview"><span>⌂</span>概览</a>
+        <a class="admin-sidebar-link" href="#storage" data-admin-page="storage"><span>▣</span>资料库</a>
+        <a class="admin-sidebar-link" href="#recycle-bin" data-admin-page="recycle-bin"><span>♲</span>回收站</a>
+        <a class="admin-sidebar-link" href="#accounts" data-admin-page="accounts"><span>◎</span>账号管理</a>
+        <a class="admin-sidebar-link" href="#printer" data-admin-page="printer"><span>▤</span>打印机状态</a>
+      </aside>
+      <div class="admin-main">
+      <section class="admin-view" id="admin-view-overview" data-admin-view="overview">
       <div class="admin-toolbar">
-        <div><h1>运行状态</h1><p class="muted" id="last-updated"></p></div>
+        <div><p class="admin-eyebrow">TCP PRINTER / ADMIN</p><h1>运行概览</h1><p class="muted" id="last-updated"></p></div>
         <div class="admin-toolbar-actions">
           <button class="secondary-button" id="refresh-status" type="button">刷新</button>
-          <button class="secondary-button" id="pause-queue" type="button">暂停新任务</button>
-          <button class="secondary-button" id="resume-queue" type="button">恢复新任务</button>
-          <button class="danger-button" id="run-cleanup" type="button">立即清理</button>
         </div>
       </div>
+      <div class="admin-service-grid">
+        <section class="admin-service-panel">
+          <div class="admin-card-heading"><span class="admin-card-icon printer">P</span><div><p class="admin-card-kicker">PRINT SERVICE</p><h2>打印服务</h2></div></div>
+          <p class="admin-notice" id="printer-detail"></p>
+          <div class="admin-service-actions">
+            <button class="secondary-button" id="pause-queue" type="button">暂停队列</button>
+            <button class="secondary-button" id="resume-queue" type="button">恢复队列</button>
+          </div>
+        </section>
+        <section class="admin-service-panel">
+          <div class="admin-card-heading"><span class="admin-card-icon storage">S</span><div><p class="admin-card-kicker">REPOSITORY</p><h2>资料库</h2></div></div>
+          <p class="admin-notice" id="storage-detail">资料库存储空间</p>
+          <button class="danger-button" id="run-cleanup-storage" type="button">清理任务缓存</button>
+        </section>
+      </div>
       <div class="admin-metrics" id="metrics"></div>
-      <p class="admin-notice" id="printer-detail"></p>
+      <div class="admin-overview-grid">
+        <section class="admin-section admin-activity-section">
+          <div class="admin-section-heading"><div><p class="admin-card-kicker">RECENT ACTIVITY</p><h2>资料库近期活动</h2></div></div>
+          <div class="admin-activity-list" id="activity-list"><p class="muted">暂无活动记录</p></div>
+        </section>
+        <section class="admin-section admin-storage-summary">
+          <div class="admin-section-heading"><div><p class="admin-card-kicker">STORAGE ANALYSIS</p><h2>资料库分析</h2></div></div>
+          <div id="repository-summary" class="repository-summary"><p class="muted">正在读取资料库统计...</p></div>
+        </section>
+      </div>
+      </section>
+      <section class="admin-view hidden" id="admin-view-accounts" data-admin-view="accounts">
+      <div class="admin-page-heading">
+        <div><p class="admin-eyebrow">TEAM / ACCOUNTS</p><h1>账号管理</h1><p class="muted">管理成员账号、登录状态和密码。</p></div>
+      </div>
+      <section class="admin-section account-section" id="account-section">
+        <div class="admin-section-heading">
+          <h2>账号管理</h2>
+          <div class="admin-section-actions">
+            <button class="secondary-button" id="accounts-more" type="button" hidden aria-expanded="false">更多</button>
+            <button class="secondary-button" id="add-account" type="button">新增账号</button>
+          </div>
+        </div>
+        <div class="admin-table-wrap">
+          <table>
+            <thead><tr><th>姓名</th><th>学号</th><th>角色</th><th>状态</th><th>最近登录</th><th>操作</th></tr></thead>
+            <tbody id="account-table"><tr><td colspan="5" class="muted">暂无账号数据</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      </section>
+      <section class="admin-view hidden" id="admin-view-storage" data-admin-view="storage">
+      <div class="admin-page-heading">
+        <div><p class="admin-eyebrow">REPOSITORY / FILES</p><h1>资料库</h1><p class="muted">查看文件夹和文件，编辑、删除或恢复资料库内容。</p></div>
+      </div>
+      <section class="admin-section" id="storage-content-section">
+        <div class="admin-section-heading">
+          <h2>资料库内容</h2>
+          <div class="admin-section-actions">
+            <input class="admin-inline-search" id="admin-storage-search" type="search" placeholder="搜索文件、标签或上传者" aria-label="搜索资料库">
+            <button class="secondary-button" id="refresh-storage-files" type="button">刷新</button>
+          </div>
+        </div>
+        <div class="admin-storage-path" id="admin-storage-path" aria-label="资料库路径"></div>
+        <div class="admin-table-wrap">
+          <table>
+            <thead><tr><th>名称</th><th>上传者</th><th>标签</th><th>类型</th><th>更新时间</th><th>操作</th></tr></thead>
+            <tbody id="storage-file-table"><tr><td colspan="6" class="muted">暂无资料库内容</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      </section>
+      <section class="admin-view hidden" id="admin-view-recycle-bin" data-admin-view="recycle-bin">
+      <div class="admin-page-heading">
+        <div><p class="admin-eyebrow">REPOSITORY / RECYCLE BIN</p><h1>回收站</h1><p class="muted">恢复被删除的资料，或立即彻底删除。</p></div>
+      </div>
+      <section class="admin-section" id="recycle-bin-section">
+        <div class="admin-section-heading">
+          <h2>已删除内容</h2>
+          <button class="secondary-button" id="refresh-recycle-bin" type="button">刷新</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table>
+            <thead><tr><th>名称</th><th>类型</th><th>删除时间</th><th>大小</th><th>操作</th></tr></thead>
+            <tbody id="recycle-bin-table"><tr><td colspan="5" class="muted">回收站为空</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+      </section>
+      <section class="admin-view hidden" id="admin-view-printer" data-admin-view="printer">
+      <div class="admin-page-heading">
+        <div><p class="admin-eyebrow">PRINT SERVICE / DEVICE</p><h1>打印机状态</h1><p class="muted">查看设备状态、Windows 队列和网页打印任务。</p></div>
+      </div>
+      <section class="admin-section" id="printer-status-section">
+        <div class="admin-section-heading"><div><p class="admin-card-kicker">DEVICE STATUS</p><h2>打印机状态</h2></div></div>
+        <div class="printer-status-summary" id="printer-status-summary"></div>
+      </section>
       <section class="admin-section" id="printer-queue-section">
-        <h2>Windows 打印队列</h2>
+        <h2>Printer 队列</h2>
         <div class="admin-table-wrap">
           <table>
             <thead><tr><th>Job ID</th><th>文档</th><th>用户</th><th>状态</th><th>进度</th><th>操作</th></tr></thead>
@@ -46,15 +149,81 @@
       </section>
       <section class="admin-section">
         <h2>网页任务</h2>
-      <div class="admin-table-wrap">
-        <table>
-          <thead><tr><th>任务</th><th>文件</th><th>状态</th><th>设备 Job ID</th><th>提交时间</th><th>操作</th></tr></thead>
-          <tbody id="job-table"></tbody>
-        </table>
-      </div>
+        <div class="admin-table-wrap">
+          <table>
+            <thead><tr><th>任务</th><th>文件</th><th>状态</th><th>设备 Job ID</th><th>提交时间</th><th>操作</th></tr></thead>
+            <tbody id="job-table"></tbody>
+          </table>
+        </div>
       </section>
+      </section>
+      </div>
+      </div>
     </section>
   </main>
-  <script src="/static/admin.js?v=3"></script>
+  <div class="admin-modal hidden" id="storage-edit-modal" role="dialog" aria-modal="true" aria-labelledby="storage-edit-modal-title">
+    <form class="admin-modal-panel" id="storage-edit-form">
+      <div class="admin-modal-heading">
+        <h2 id="storage-edit-modal-title">编辑资料</h2>
+        <button class="icon-button" id="storage-edit-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="muted" id="storage-edit-file-name"></p>
+      <label for="admin-file-title">标题</label>
+      <input id="admin-file-title" name="title" maxlength="200" required>
+      <label for="admin-file-description">简介</label>
+      <textarea id="admin-file-description" name="description" rows="4" maxlength="2000"></textarea>
+      <label for="admin-file-version">版本号</label>
+      <input id="admin-file-version" name="version" maxlength="40">
+      <label for="admin-file-tags">标签</label>
+      <input id="admin-file-tags" name="tags" placeholder="多个标签用逗号分隔">
+      <p class="admin-modal-error" id="storage-edit-error" role="alert"></p>
+      <div class="admin-modal-actions">
+        <button class="secondary-button" id="storage-edit-cancel" type="button">取消</button>
+        <button class="primary-button" id="storage-edit-submit" type="submit">保存修改</button>
+      </div>
+    </form>
+  </div>
+  <div class="admin-modal hidden" id="folder-edit-modal" role="dialog" aria-modal="true" aria-labelledby="folder-edit-modal-title">
+    <form class="admin-modal-panel" id="folder-edit-form">
+      <div class="admin-modal-heading">
+        <h2 id="folder-edit-modal-title">编辑文件夹</h2>
+        <button class="icon-button" id="folder-edit-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <label for="admin-folder-name">名称</label>
+      <input id="admin-folder-name" name="name" maxlength="200" required>
+      <label for="admin-folder-description">简介</label>
+      <textarea id="admin-folder-description" name="description" rows="4" maxlength="2000"></textarea>
+      <label for="admin-folder-tags">标签</label>
+      <input id="admin-folder-tags" name="tags" placeholder="多个标签用逗号分隔">
+      <label for="admin-folder-parent">父文件夹</label>
+      <select id="admin-folder-parent" name="parent_id"><option value="">根目录</option></select>
+      <p class="admin-modal-error" id="folder-edit-error" role="alert"></p>
+      <div class="admin-modal-actions">
+        <button class="secondary-button" id="folder-edit-cancel" type="button">取消</button>
+        <button class="primary-button" id="folder-edit-submit" type="submit">保存修改</button>
+      </div>
+    </form>
+  </div>
+  <div class="admin-modal hidden" id="account-create-modal" role="dialog" aria-modal="true" aria-labelledby="account-create-modal-title">
+    <form class="admin-modal-panel" id="account-create-form">
+      <div class="admin-modal-heading">
+        <h2 id="account-create-modal-title">新增账号</h2>
+        <button class="icon-button" id="account-create-close" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="muted">账号首次登录时必须修改初始密码。</p>
+      <label for="account-name">姓名</label>
+      <input id="account-name" name="name" maxlength="80" autocomplete="name" required>
+      <label for="account-student-id">学号</label>
+      <input id="account-student-id" name="student_id" maxlength="40" autocomplete="off" required>
+      <label for="account-initial-password">初始密码</label>
+      <input id="account-initial-password" value="111111" readonly>
+      <p class="admin-modal-error" id="account-create-error" role="alert"></p>
+      <div class="admin-modal-actions">
+        <button class="secondary-button" id="account-create-cancel" type="button">取消</button>
+        <button class="primary-button" id="account-create-submit" type="submit">创建账号</button>
+      </div>
+    </form>
+  </div>
+  <script src="/static/admin.js?v=13"></script>
 </body>
 </html>

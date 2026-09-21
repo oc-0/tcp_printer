@@ -9,11 +9,13 @@
 - 响应式网页，支持手机和桌面浏览器。
 - 支持 PDF、JPG、PNG、DOC、DOCX、XLS、XLSX、PPT、PPTX 上传。
 - 本地 PDF.js 预览，不依赖外部 CDN。
-- 黑白/彩色、份数、页码范围和单面打印。
+- 黑白/彩色、份数、页码范围、纵向/横向方向、全部/奇数/偶数页和单面打印。
 - SQLite 任务队列，支持取消等待任务、停止后续打印和管理员查看任务。
 - 自动清理过期上传文件和已结束任务，避免 `storage/` 持续增长。
 - 三种后端模式：`dry-run`、`cups` 和 `windows`。
 - Windows 下可使用 Microsoft Word 转换 DOC/DOCX，以提高包含复杂公式的 Word 文档的保真度。
+- 独立资料库支持学号登录、首次改密、文件上传、文件夹、搜索、标签、单文件/整文件夹 ZIP 下载和发布者权限。
+- 资料库原件与打印临时文件使用独立数据库和目录，ZIP 只读取内部清单，不自动解压。
 
 ## 架构
 
@@ -73,6 +75,9 @@ TCP_PRINTER_PORT=8080
 | `TCP_PRINTER_MAX_UPLOAD_MB` | `200` | 单个上传文件的最大大小（MB） |
 | `TCP_PRINTER_RETENTION_HOURS` | `24` | 已结束任务及其文件的保留时间（小时） |
 | `TCP_PRINTER_ADMIN_TOKEN` | 空 | 管理页面访问令牌；为空时禁用管理页面 |
+| `TCP_PRINTER_ADMIN_STUDENT_ID` | 空 | 后门管理员学号；该账号始终具有管理员权限且不显示在账号管理列表中 |
+| `TCP_PRINTER_ADMIN_PASSWORD` | 空 | 后门管理员密码；至少 6 位，配置后服务启动时自动创建或同步隐藏账号 |
+| `TCP_PRINTER_STORAGE_SESSION_HOURS` | `24` | 资料库登录会话有效时间（小时） |
 
 ## Windows 部署
 
@@ -112,6 +117,20 @@ Start-ScheduledTask -TaskName "TCP Printer"
 ```powershell
 .\deploy\register-windows-task.ps1 -Remove
 ```
+
+如果 PowerShell 报错“无法将 `InteractiveToken` 转换为 `LogonTypeEnum`”，说明执行的是旧版脚本；`New-ScheduledTaskPrincipal` 应使用 `-LogonType Interactive`。请确认当前目录是本项目目录 `C:\Users\lenovo\Desktop\tcp_printer`，再重新注册：
+
+```powershell
+Set-Location C:\Users\lenovo\Desktop\tcp_printer
+Set-ExecutionPolicy -Scope Process Bypass
+.\deploy\register-windows-task.ps1 -Remove
+.\deploy\register-windows-task.ps1
+Start-ScheduledTask -TaskName "TCP Printer"
+Get-ScheduledTask -TaskName "TCP Printer" | Select-Object TaskName, State
+Get-ScheduledTaskInfo -TaskName "TCP Printer" | Select-Object LastRunTime, LastTaskResult
+```
+
+`LastTaskResult` 为 `267009`（十六进制 `0x00041301`）表示任务正在运行，不是失败；任务完成或退出后会显示其他结果码。如果实际使用的是另一个目录（例如 `C:\tcp_printer`），需要在该目录同步本项目最新的 `deploy\register-windows-task.ps1`，否则仍会执行旧脚本。
 
 Windows 打印队列可尝试报告缺纸、离线、卡纸、需要人工处理等状态，但具体信息取决于打印机驱动。任务从 Windows 队列中消失不严格等同于最后一页已经出纸。
 
@@ -161,7 +180,7 @@ LibreOffice 无法可靠保持某些旧版 OLE 公式对象（例如 `Microsoft 
 
 ## 局域网访问
 
-服务监听 `0.0.0.0` 后，其他设备通过服务器当前局域网 IP 访问：
+服务监听 `0.0.0.0` 后，局域网设备可以直接通过 Mini PC 的局域网 IP 访问：
 
 ```text
 http://<server-ip>:8080
@@ -171,7 +190,7 @@ http://<server-ip>:8080
 
 ## 管理页面
 
-设置 `TCP_PRINTER_ADMIN_TOKEN` 并重启服务后，可访问 `/admin`。管理页面用于查看打印机状态、磁盘空间和最近任务，并执行取消、停止或清理操作。
+设置 `TCP_PRINTER_ADMIN_TOKEN` 并重启服务后，可访问 `/admin`。管理页面用于查看打印机状态、资料库使用量、账号和最近任务，并执行队列、账号及资料库文件夹管理操作。管理员不提供资料下载按钮；资料库回收站支持恢复或立即彻底删除已删除的文件和文件夹。
 
 请使用足够长的随机令牌，例如：
 
@@ -179,11 +198,13 @@ http://<server-ip>:8080
 openssl rand -hex 32
 ```
 
+如果启用后门管理员，还需要同时设置 `TCP_PRINTER_ADMIN_STUDENT_ID` 和 `TCP_PRINTER_ADMIN_PASSWORD`。服务启动时会自动创建或同步该隐藏账号；登录仍然需要学号、密码和 `TCP_PRINTER_ADMIN_TOKEN`，后门账号不会出现在账号管理列表中。
+
 ## 数据与安全
 
 - 上传源文件、转换后的 PDF 和 SQLite 数据库保存在 `storage/` 与 `data/`，默认不应提交到 Git。
 - 自动清理只删除已结束任务；正在转换、排队或打印的任务不会被自动删除。
-- 该项目没有用户账户、文件加密或面向公网的访问控制。不要直接暴露到互联网。
+- 资料库账号按学号绑定，初始密码为 `111111`，首次登录必须修改；密码只保存 bcrypt（未安装 bcrypt 时使用标准库 scrypt）哈希。登录成员可以查看、下载、上传、修改和删除资料库文件及文件夹；删除内容按 `TCP_PRINTER_RETENTION_HOURS` 保留，期间管理员可以恢复，之后自动物理删除。资料库不设置总容量和单文件上传大小上限，但 ZIP 仍执行路径、条目和解压安全检查。不要直接暴露到互联网。
 - 若必须跨网络访问，请在受控的 VPN、反向代理和 HTTPS 环境中部署，并自行补充认证、限流和审计。
 - 不要将 `.env`、打印队列凭据、私有文档、许可证文件或商业字体提交到公开仓库。
 
@@ -200,9 +221,8 @@ openssl rand -hex 32
 app/                 FastAPI 应用、任务队列、转换与打印后端
 app/static/          前端资源和本地 PDF.js
 app/templates/       页面模板
-data/                SQLite 运行数据（Git 忽略）
-storage/             上传文件与转换结果（Git 忽略）
+data/                printer.db 与 repository.db（Git 忽略）
+storage/             打印临时文件与 repository/ 原件（Git 忽略）
 deploy/              Windows 和 systemd 部署脚本
 tests/               基础单元测试
 ```
-

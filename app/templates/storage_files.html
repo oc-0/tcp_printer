@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>资料库</title>
+  <link rel="stylesheet" href="/static/styles.css?v=11">
+  <link rel="stylesheet" href="/static/storage.css?v=7">
+</head>
+<body class="storage-page">
+  <header class="app-header storage-header">
+    <a class="brand" href="/" aria-label="返回服务选择">
+      <img class="brand-logo" src="/static/brand/tcp-team-logo.png" alt="TCP Technical Critical Point">
+      <span class="storage-brand-name">/ 资料库</span>
+    </a>
+    <div class="storage-toolbar">
+      <label class="storage-search"><span class="sr-only">搜索资料</span><input id="storage-search-input" type="search" placeholder="搜索资料..."></label>
+      <button class="secondary-button storage-new-folder" id="storage-new-folder" type="button">新建文件夹</button>
+      <button class="primary-button storage-upload" id="storage-upload-button" type="button">上传文件</button>
+      <div class="storage-user-menu" id="storage-user-menu" hidden>
+        <span class="storage-user-avatar" id="storage-user-avatar" aria-hidden="true">?</span>
+        <span class="storage-user-name" id="storage-user-name"></span>
+      </div>
+    </div>
+  </header>
+  <main class="storage-files-shell">
+    <nav class="storage-breadcrumb" id="storage-breadcrumb" aria-label="资料库路径"></nav>
+    <div class="storage-browser-grid">
+      <section class="storage-file-list" aria-labelledby="file-list-title">
+        <div class="storage-list-heading storage-list-grid"><span id="file-list-title">名称</span><span>更新时间</span></div>
+        <div class="storage-list-body" id="storage-file-list-body"><p class="storage-empty muted">正在加载资料...</p></div>
+      </section>
+      <aside class="storage-detail-panel" aria-labelledby="file-detail-title">
+        <div class="storage-detail-heading"><span class="storage-detail-icon" id="file-detail-icon">--</span><div><h2 id="file-detail-title">选择一个项目</h2><p class="muted" id="file-detail-type">资料库项目</p></div></div>
+        <div class="storage-detail-group"><strong>简介</strong><p id="file-detail-description">选择文件或文件夹后查看简介。</p></div>
+        <div class="storage-detail-group"><strong>标签</strong><div class="storage-tags" id="file-detail-tags"></div></div>
+        <dl class="storage-detail-properties" id="file-detail-properties"></dl>
+        <div class="storage-detail-actions">
+          <button class="secondary-button hidden" id="storage-folder-open" type="button">打开文件夹</button><button class="secondary-button hidden" id="storage-edit-folder" type="button">编辑文件夹</button>
+          <button class="secondary-button hidden" id="storage-edit" type="button">编辑资料</button><button class="danger-button hidden" id="storage-delete" type="button">删除</button><button class="primary-button hidden" id="storage-download" type="button">下载文件</button>
+        </div>
+      </aside>
+    </div>
+  </main>
+  <input id="storage-upload-input" type="file" hidden><p class="storage-page-error" id="storage-page-error" role="alert"></p>
+  <div class="storage-modal hidden" id="storage-modal" role="dialog" aria-modal="true" aria-labelledby="storage-modal-title">
+    <form class="storage-modal-panel" id="storage-metadata-form"><div class="storage-modal-heading"><h2 id="storage-modal-title">上传文件</h2><button class="icon-button" id="storage-modal-close" type="button" aria-label="关闭">×</button></div>
+      <p class="storage-selected-upload muted" id="storage-selected-upload"></p><label for="metadata-title">标题</label><input id="metadata-title" name="title" maxlength="200"><label for="metadata-description">简介</label><textarea id="metadata-description" name="description" rows="3" maxlength="2000"></textarea><label for="metadata-version">版本号</label><input id="metadata-version" name="version" value="1.0"><label for="metadata-tags">标签</label><input id="metadata-tags" name="tags" placeholder="多个标签用逗号分隔"><p class="storage-modal-error" id="storage-modal-error" role="alert"></p>
+      <div class="storage-modal-actions"><button class="secondary-button" id="storage-modal-cancel" type="button">取消</button><button class="primary-button" type="submit">保存</button></div>
+    </form>
+  </div>
+  <div class="storage-modal hidden" id="storage-folder-modal" role="dialog" aria-modal="true" aria-labelledby="storage-folder-modal-title">
+    <form class="storage-modal-panel" id="storage-folder-form"><div class="storage-modal-heading"><h2 id="storage-folder-modal-title">新建文件夹</h2><button class="icon-button" id="storage-folder-close" type="button" aria-label="关闭">×</button></div>
+      <label for="folder-name">文件夹名称</label><input id="folder-name" name="name" maxlength="200" required><label for="folder-description">简介</label><textarea id="folder-description" name="description" rows="3" maxlength="2000"></textarea><label for="folder-tags">标签</label><input id="folder-tags" name="tags" placeholder="多个标签用逗号分隔"><label for="folder-parent">父文件夹</label><select id="folder-parent" name="parent_id"><option value="">根目录</option></select><p class="storage-modal-error" id="storage-folder-error" role="alert"></p>
+      <div class="storage-modal-actions"><button class="secondary-button" id="storage-folder-cancel" type="button">取消</button><button class="primary-button" type="submit">保存</button></div>
+    </form>
+  </div>
+  <script src="/static/storage-files.js?v=12"></script>
+</body>
+</html>
