@@ -3,9 +3,7 @@ const authPanel = document.getElementById("auth-panel");
 const dashboard = document.getElementById("dashboard");
 const authError = document.getElementById("auth-error");
 const tokenKey = "tcp-printer-admin-token";
-const accountPageSize = 3;
 let adminToken = sessionStorage.getItem(tokenKey) || "";
-let accountsExpanded = false;
 let editingStorageFile = null;
 let storageFiles = [];
 let storageFolders = [];
@@ -99,17 +97,12 @@ function metric(label, value) {
 
 function renderAccounts(accounts) {
   const table = document.getElementById("account-table");
-  const moreButton = document.getElementById("accounts-more");
   const rows = Array.isArray(accounts) ? accounts : [];
   if (!rows.length) {
     table.innerHTML = '<tr><td colspan="6" class="muted">暂无账号数据</td></tr>';
-    moreButton.hidden = true;
-    accountsExpanded = false;
-    moreButton.setAttribute("aria-expanded", "false");
     return;
   }
-  const visibleRows = accountsExpanded ? rows : rows.slice(0, accountPageSize);
-  table.replaceChildren(...visibleRows.map((account) => {
+  table.replaceChildren(...rows.map((account) => {
     const row = document.createElement("tr");
     row.innerHTML = `<td>${escapeHtml(account.name || "-")}</td><td>${escapeHtml(account.student_id || "-")}</td><td>${account.is_admin ? "管理员" : "成员"}</td><td>${escapeHtml(account.status || "-")}</td><td>${escapeHtml(formatDate(account.last_login_at))}</td><td></td>`;
     const actionCell = row.lastElementChild;
@@ -121,10 +114,6 @@ function renderAccounts(accounts) {
     );
     return row;
   }));
-  const hasMore = rows.length > accountPageSize;
-  moreButton.hidden = !hasMore;
-  moreButton.textContent = accountsExpanded ? "收起" : `更多（${rows.length - accountPageSize}）`;
-  moreButton.setAttribute("aria-expanded", String(accountsExpanded));
 }
 
 async function deleteAccount(id) {
@@ -623,10 +612,6 @@ async function cleanupStorage() {
 }
 document.getElementById("run-cleanup-storage").addEventListener("click", cleanupStorage);
 document.getElementById("refresh-recycle-bin").addEventListener("click", refresh);
-document.getElementById("accounts-more").addEventListener("click", () => {
-  accountsExpanded = !accountsExpanded;
-  refresh();
-});
 document.getElementById("add-account").addEventListener("click", openAccountCreate);
 document.getElementById("account-create-close").addEventListener("click", closeAccountCreate);
 document.getElementById("account-create-cancel").addEventListener("click", closeAccountCreate);

@@ -71,6 +71,14 @@ class RepositoryTests(unittest.TestCase):
         self.repository.soft_delete(item["id"], self.other["id"])
         self.assertIsNone(self.repository.get_file(item["id"], self.owner["id"]))
 
+    def test_repository_accepts_arbitrary_file_types(self):
+        root = Path(self.directory.name)
+        source = root / "drawing.SLDPRT"
+        source.write_bytes(b"solid model data")
+        item = self.repository.save_uploaded_file(source, "drawing.SLDPRT", self.owner["id"], {}, None)
+        self.assertEqual(item["original_name"], "drawing.SLDPRT")
+        self.assertEqual(item["extension"], ".sldprt")
+
     def test_zip_rejects_path_traversal_and_accepts_safe_entries(self):
         root = Path(self.directory.name)
         unsafe = root / "unsafe.zip"

@@ -16,7 +16,7 @@
     <div class="storage-toolbar">
       <label class="storage-search"><span class="sr-only">搜索资料</span><input id="storage-search-input" type="search" placeholder="搜索资料..."></label>
       <button class="secondary-button storage-new-folder" id="storage-new-folder" type="button">新建文件夹</button>
-      <button class="primary-button storage-upload" id="storage-upload-button" type="button">上传文件</button>
+      <button class="primary-button storage-upload" id="storage-upload-button" type="button">上传</button>
       <div class="storage-user-menu" id="storage-user-menu" hidden>
         <span class="storage-user-avatar" id="storage-user-avatar" aria-hidden="true">?</span>
         <span class="storage-user-name" id="storage-user-name"></span>
@@ -42,7 +42,15 @@
       </aside>
     </div>
   </main>
-  <input id="storage-upload-input" type="file" hidden><p class="storage-page-error" id="storage-page-error" role="alert"></p>
+  <input id="storage-upload-input" type="file" hidden>
+  <input id="storage-folder-upload-input" type="file" webkitdirectory directory multiple hidden>
+  <p class="storage-page-error" id="storage-page-error" role="alert"></p>
+  <div class="storage-modal hidden" id="storage-upload-choice" role="dialog" aria-modal="true" aria-labelledby="storage-upload-choice-title">
+    <div class="storage-modal-panel">
+      <div class="storage-modal-heading"><h2 id="storage-upload-choice-title">上传内容</h2><button class="icon-button" id="storage-upload-choice-close" type="button" aria-label="关闭">×</button></div>
+      <div class="storage-modal-actions"><button class="secondary-button" id="storage-upload-files-choice" type="button">选择文件</button><button class="primary-button" id="storage-upload-folder-choice" type="button">选择文件夹</button></div>
+    </div>
+  </div>
   <div class="storage-modal hidden" id="storage-modal" role="dialog" aria-modal="true" aria-labelledby="storage-modal-title">
     <form class="storage-modal-panel" id="storage-metadata-form"><div class="storage-modal-heading"><h2 id="storage-modal-title">上传文件</h2><button class="icon-button" id="storage-modal-close" type="button" aria-label="关闭">×</button></div>
       <p class="storage-selected-upload muted" id="storage-selected-upload"></p><label for="metadata-title">标题</label><input id="metadata-title" name="title" maxlength="200"><label for="metadata-description">简介</label><textarea id="metadata-description" name="description" rows="3" maxlength="2000"></textarea><label for="metadata-version">版本号</label><input id="metadata-version" name="version" value="1.0"><label for="metadata-tags">标签</label><input id="metadata-tags" name="tags" placeholder="多个标签用逗号分隔"><p class="storage-modal-error" id="storage-modal-error" role="alert"></p>
@@ -55,6 +63,6 @@
       <div class="storage-modal-actions"><button class="secondary-button" id="storage-folder-cancel" type="button">取消</button><button class="primary-button" type="submit">保存</button></div>
     </form>
   </div>
-  <script src="/static/storage-files.js?v=12"></script>
+  <script src="/static/storage-files.js?v=13"></script>
 </body>
 </html>

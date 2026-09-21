@@ -3,6 +3,8 @@ const pageError = document.getElementById("storage-page-error");
 const searchInput = document.getElementById("storage-search-input");
 const uploadButton = document.getElementById("storage-upload-button");
 const uploadInput = document.getElementById("storage-upload-input");
+const folderUploadInput = document.getElementById("storage-folder-upload-input");
+const uploadChoiceModal = document.getElementById("storage-upload-choice");
 const metadataModal = document.getElementById("storage-modal");
 const metadataForm = document.getElementById("storage-metadata-form");
 const folderModal = document.getElementById("storage-folder-modal");
@@ -210,6 +212,55 @@ function openMetadataModal(file = null) {
 
 function closeMetadataModal() { metadataModal.classList.add("hidden"); pendingUpload = null; uploadInput.value = ""; }
 
+function closeUploadChoice() { uploadChoiceModal.classList.add("hidden"); }
+
+async function uploadFolderFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  const folderIds = new Map();
+  const folderKey = (parentId, name) => `${parentId || "root"}/${name}`;
+  const getOrCreateFolder = async (name, parentId) => {
+    const key = folderKey(parentId, name);
+    if (folderIds.has(key)) return folderIds.get(key);
+    const existing = folders.find((folder) => folder.parent_id === (parentId || null) && folder.name === name);
+    const folder = existing || await request("/api/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, parent_id: parentId || null, description: "", tags: [] }),
+    });
+    folderIds.set(key, folder.id);
+    return folder.id;
+  };
+  closeUploadChoice();
+  pageError.textContent = `正在上传文件夹，共 ${files.length} 个文件...`;
+  try {
+    for (const file of files) {
+      const relativePath = String(file.webkitRelativePath || file.name).replaceAll("\\", "/");
+      const parts = relativePath.split("/").filter(Boolean);
+      const fileName = parts.pop() || file.name;
+      let parentId = currentFolderId || null;
+      for (const folderName of parts) parentId = await getOrCreateFolder(folderName, parentId);
+      const form = new FormData();
+      form.append("file", file, fileName);
+      form.set("title", fileName.replace(/\.[^.]+$/, ""));
+      form.set("description", "");
+      form.set("version", "1.0");
+      form.set("group_id", parentId || "");
+      form.set("tags", "[]");
+      await request("/api/files", { method: "POST", body: form });
+    }
+    pageError.textContent = `文件夹上传完成，共 ${files.length} 个文件。`;
+    await loadFolders();
+    await loadItems();
+  } catch (error) {
+    pageError.textContent = `文件夹上传未完成：${error.message}`;
+    await loadFolders();
+    await loadItems();
+  } finally {
+    folderUploadInput.value = "";
+  }
+}
+
 function openFolderModal(folder = null) {
   editingFolder = folder;
   byId("storage-folder-modal-title").textContent = folder ? "编辑文件夹" : "新建文件夹";
@@ -225,8 +276,13 @@ function openFolderModal(folder = null) {
 function closeFolderModal() { folderModal.classList.add("hidden"); editingFolder = null; }
 
 searchInput.addEventListener("input", () => { clearTimeout(window.storageSearchTimer); window.storageSearchTimer = setTimeout(loadItems, 250); });
-uploadButton.addEventListener("click", () => uploadInput.click());
+uploadButton.addEventListener("click", () => uploadChoiceModal.classList.remove("hidden"));
+byId("storage-upload-choice-close").addEventListener("click", closeUploadChoice);
+byId("storage-upload-files-choice").addEventListener("click", () => { closeUploadChoice(); uploadInput.click(); });
+byId("storage-upload-folder-choice").addEventListener("click", () => { closeUploadChoice(); folderUploadInput.click(); });
+uploadChoiceModal.addEventListener("click", (event) => { if (event.target === uploadChoiceModal) closeUploadChoice(); });
 uploadInput.addEventListener("change", () => { if (uploadInput.files[0]) openMetadataModal(); });
+folderUploadInput.addEventListener("change", () => uploadFolderFiles(folderUploadInput.files));
 byId("storage-new-folder").addEventListener("click", () => openFolderModal());
 byId("storage-folder-open").addEventListener("click", () => { if (selectedItem?.type === "folder") openFolder(selectedItem.id); });
 byId("storage-edit-folder").addEventListener("click", () => { if (selectedItem?.type === "folder") openFolderModal(selectedItem); });

@@ -24,7 +24,6 @@ from .passwords import hash_password, verify_password
 INITIAL_PASSWORD = "111111"
 MAX_LOGIN_FAILURES = 5
 LOCKOUT_MINUTES = 15
-ALLOWED_SUFFIXES = {".pdf", ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".zip"}
 MAX_ZIP_ENTRIES = 10_000
 MAX_ZIP_UNCOMPRESSED_BYTES = 2 * 1024 * 1024 * 1024
 
@@ -542,8 +541,8 @@ class Repository:
     def save_uploaded_file(self, source: Path, original_name: str, owner_id: str, metadata: dict, max_bytes: Optional[int], quota_bytes: Optional[int] = None) -> dict:
         safe_name = Path((original_name or "").replace("\\", "/")).name
         suffix = Path(safe_name).suffix.lower()
-        if not safe_name or suffix not in ALLOWED_SUFFIXES:
-            raise RepositoryError("暂不支持此文件类型。")
+        if not safe_name:
+            raise RepositoryError("文件名不能为空。")
         size = source.stat().st_size
         if max_bytes is not None and size > max_bytes:
             raise RepositoryError("文件超过资料库上传大小限制。")
@@ -600,8 +599,8 @@ class Repository:
     def add_version(self, file_id: str, user_id: str, source: Path, original_name: str, version: str, version_note: str, max_bytes: Optional[int], quota_bytes: Optional[int] = None, is_admin: bool = False) -> dict:
         safe_name = Path((original_name or "").replace("\\", "/")).name
         suffix = Path(safe_name).suffix.lower()
-        if not safe_name or suffix not in ALLOWED_SUFFIXES:
-            raise RepositoryError("暂不支持此文件类型。")
+        if not safe_name:
+            raise RepositoryError("文件名不能为空。")
         size = source.stat().st_size
         if max_bytes is not None and size > max_bytes:
             raise RepositoryError("文件超过资料库上传大小限制。")
