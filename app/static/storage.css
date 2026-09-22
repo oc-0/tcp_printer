@@ -65,6 +65,9 @@
 .storage-selected-upload { margin: 0; overflow-wrap: anywhere; font-size: 13px; }
 .storage-modal-error { min-height: 20px; margin: 10px 0 0; color: var(--danger); font-size: 13px; }
 .storage-modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.storage-upload-progress-label { margin: 18px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.storage-upload-progress-bar { display: block; width: 100%; height: 10px; accent-color: var(--primary); }
+.storage-upload-progress-count { margin: 8px 0 0; text-align: right; font-size: 13px; }
 @media (max-width: 760px) {
   .storage-header { height: auto; min-height: 58px; padding-top: 10px; padding-bottom: 10px; align-items: flex-start; flex-wrap: wrap; }
   .storage-toolbar { width: 100%; flex-wrap: wrap; justify-content: flex-start; }
