@@ -5,6 +5,10 @@ const uploadButton = document.getElementById("storage-upload-button");
 const uploadInput = document.getElementById("storage-upload-input");
 const folderUploadInput = document.getElementById("storage-folder-upload-input");
 const uploadChoiceModal = document.getElementById("storage-upload-choice");
+const uploadProgressModal = document.getElementById("storage-upload-progress");
+const uploadProgressBar = document.getElementById("storage-upload-progress-bar");
+const uploadProgressLabel = document.getElementById("storage-upload-progress-label");
+const uploadProgressCount = document.getElementById("storage-upload-progress-count");
 const metadataModal = document.getElementById("storage-modal");
 const metadataForm = document.getElementById("storage-metadata-form");
 const folderModal = document.getElementById("storage-folder-modal");
@@ -232,8 +236,13 @@ async function uploadFolderFiles(fileList) {
     return folder.id;
   };
   closeUploadChoice();
-  pageError.textContent = `正在上传文件夹，共 ${files.length} 个文件...`;
+  uploadProgressBar.value = 0;
+  uploadProgressLabel.textContent = "正在准备上传...";
+  uploadProgressCount.textContent = `0 / ${files.length} 个文件`;
+  uploadProgressModal.classList.remove("hidden");
+  pageError.textContent = "";
   try {
+    let completed = 0;
     for (const file of files) {
       const relativePath = String(file.webkitRelativePath || file.name).replaceAll("\\", "/");
       const parts = relativePath.split("/").filter(Boolean);
@@ -247,16 +256,23 @@ async function uploadFolderFiles(fileList) {
       form.set("version", "1.0");
       form.set("group_id", parentId || "");
       form.set("tags", "[]");
+      uploadProgressLabel.textContent = `正在上传：${fileName}`;
       await request("/api/files", { method: "POST", body: form });
+      completed += 1;
+      uploadProgressBar.value = Math.round((completed / files.length) * 100);
+      uploadProgressCount.textContent = `${completed} / ${files.length} 个文件`;
     }
+    uploadProgressLabel.textContent = "上传完成";
     pageError.textContent = `文件夹上传完成，共 ${files.length} 个文件。`;
     await loadFolders();
     await loadItems();
   } catch (error) {
+    uploadProgressLabel.textContent = "上传未完成";
     pageError.textContent = `文件夹上传未完成：${error.message}`;
     await loadFolders();
     await loadItems();
   } finally {
+    uploadProgressModal.classList.add("hidden");
     folderUploadInput.value = "";
   }
 }

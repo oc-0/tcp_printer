@@ -51,6 +51,14 @@
       <div class="storage-modal-actions"><button class="secondary-button" id="storage-upload-files-choice" type="button">选择文件</button><button class="primary-button" id="storage-upload-folder-choice" type="button">选择文件夹</button></div>
     </div>
   </div>
+  <div class="storage-modal hidden" id="storage-upload-progress" role="dialog" aria-modal="true" aria-labelledby="storage-upload-progress-title">
+    <div class="storage-modal-panel">
+      <div class="storage-modal-heading"><h2 id="storage-upload-progress-title">正在上传</h2></div>
+      <p class="storage-upload-progress-label" id="storage-upload-progress-label">准备上传...</p>
+      <progress class="storage-upload-progress-bar" id="storage-upload-progress-bar" max="100" value="0">0%</progress>
+      <p class="storage-upload-progress-count muted" id="storage-upload-progress-count">0 / 0 个文件</p>
+    </div>
+  </div>
   <div class="storage-modal hidden" id="storage-modal" role="dialog" aria-modal="true" aria-labelledby="storage-modal-title">
     <form class="storage-modal-panel" id="storage-metadata-form"><div class="storage-modal-heading"><h2 id="storage-modal-title">上传文件</h2><button class="icon-button" id="storage-modal-close" type="button" aria-label="关闭">×</button></div>
       <p class="storage-selected-upload muted" id="storage-selected-upload"></p><label for="metadata-title">标题</label><input id="metadata-title" name="title" maxlength="200"><label for="metadata-description">简介</label><textarea id="metadata-description" name="description" rows="3" maxlength="2000"></textarea><label for="metadata-version">版本号</label><input id="metadata-version" name="version" value="1.0"><label for="metadata-tags">标签</label><input id="metadata-tags" name="tags" placeholder="多个标签用逗号分隔"><p class="storage-modal-error" id="storage-modal-error" role="alert"></p>
@@ -63,6 +71,6 @@
       <div class="storage-modal-actions"><button class="secondary-button" id="storage-folder-cancel" type="button">取消</button><button class="primary-button" type="submit">保存</button></div>
     </form>
   </div>
-  <script src="/static/storage-files.js?v=13"></script>
+  <script src="/static/storage-files.js?v=14"></script>
 </body>
 </html>
