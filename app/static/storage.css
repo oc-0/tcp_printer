@@ -38,6 +38,8 @@
 .storage-list-heading { display: flex; justify-content: space-between; padding: 10px 14px; color: var(--text); background: var(--surface-raised); border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; }
 .storage-list-heading span:last-child { width: 92px; color: var(--muted); text-align: right; font-weight: 400; }
 .storage-list-body { display: grid; }
+.storage-load-more { display: block; width: calc(100% - 28px); margin: 12px auto 16px; }
+.storage-load-more.hidden { display: none; }
 .storage-file-row { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; color: var(--text); background: transparent; border: 0; border-bottom: 1px solid var(--border); text-align: left; }
 .storage-file-row:last-child { border-bottom: 0; }
 .storage-file-row:hover { background: var(--surface-raised); }

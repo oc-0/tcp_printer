@@ -136,6 +136,17 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(root_items[0]["type"], "folder")
         self.assertEqual(root_items[0]["name"], "硬件归档")
 
+    def test_list_items_supports_pagination(self):
+        root = Path(self.directory.name)
+        for name in ("a.pdf", "b.pdf", "c.pdf"):
+            source = root / name
+            source.write_bytes(b"%PDF-1.7\n" + name.encode())
+            self.repository.save_uploaded_file(source, name, self.owner["id"], {}, None)
+        first_page = self.repository.list_items(self.owner["id"], limit=2, offset=0)
+        second_page = self.repository.list_items(self.owner["id"], limit=2, offset=2)
+        self.assertEqual([item["name"] for item in first_page[:2]], ["a.pdf", "b.pdf"])
+        self.assertEqual([item["name"] for item in second_page[:2]], ["c.pdf"])
+
     def test_folder_delete_hides_contents_until_restore(self):
         root = Path(self.directory.name)
         folder = self.repository.create_folder("临时资料")

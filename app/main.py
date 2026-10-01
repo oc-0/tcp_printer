@@ -30,6 +30,7 @@ converter = FileConverter(settings)
 backend = PrintBackend(settings)
 worker = PrintWorker(store, backend, settings.storage_dir, settings.retention_hours)
 repository = Repository(settings.data_dir / "repository.db", settings.storage_dir / "repository")
+conversion_lock = asyncio.Lock()
 if settings.admin_student_id and settings.admin_password:
     repository.ensure_backdoor_user(settings.admin_student_id, settings.admin_password)
 
@@ -52,7 +53,10 @@ async def lifespan(_: FastAPI):
 async def repository_cleanup_loop():
     while True:
         await asyncio.sleep(3600)
-        repository.purge_deleted(datetime.now(timezone.utc) - timedelta(hours=settings.repository_deleted_retention_hours))
+        await asyncio.to_thread(
+            repository.purge_deleted,
+            datetime.now(timezone.utc) - timedelta(hours=settings.repository_deleted_retention_hours),
+        )
 
 
 # Windows and some Linux installations do not register .mjs by default.
@@ -561,13 +565,21 @@ async def upload_repository_file(
                 size += len(chunk)
                 if settings.repository_max_upload_bytes is not None and size > settings.repository_max_upload_bytes:
                     raise RepositoryError("文件超过资料库上传大小限制。")
-                target.write(chunk)
+                await asyncio.to_thread(target.write, chunk)
         metadata = {
             "title": title, "description": description,
             "version": version, "group_id": group_id, "tags": parse_tags(tags),
             "visibility": visibility, "version_note": version_note,
         }
-        result = repository.save_uploaded_file(incoming, file.filename, user["id"], metadata, settings.repository_max_upload_bytes, settings.repository_quota_bytes)
+        result = await asyncio.to_thread(
+            repository.save_uploaded_file,
+            incoming,
+            file.filename,
+            user["id"],
+            metadata,
+            settings.repository_max_upload_bytes,
+            settings.repository_quota_bytes,
+        )
         incoming = None
         return result
     except RepositoryError as error:
@@ -604,8 +616,18 @@ async def upload_repository_version(
                 size += len(chunk)
                 if settings.repository_max_upload_bytes is not None and size > settings.repository_max_upload_bytes:
                     raise RepositoryError("文件超过资料库上传大小限制。")
-                target.write(chunk)
-        result = repository.add_version(file_id, user["id"], incoming, file.filename or "", version, version_note, settings.repository_max_upload_bytes, settings.repository_quota_bytes)
+                await asyncio.to_thread(target.write, chunk)
+        result = await asyncio.to_thread(
+            repository.add_version,
+            file_id,
+            user["id"],
+            incoming,
+            file.filename or "",
+            version,
+            version_note,
+            settings.repository_max_upload_bytes,
+            settings.repository_quota_bytes,
+        )
         incoming = None
         return result
     except RepositoryError as error:
@@ -661,22 +683,32 @@ async def list_repository_groups(request: Request):
 
 
 @app.get("/api/storage/items")
-async def list_storage_items(request: Request, parent_id: Optional[str] = None, q: str = ""):
+async def list_storage_items(request: Request, response: Response, parent_id: Optional[str] = None, q: str = "", limit: int = 100, offset: int = 0):
     user = storage_user(request)
-    return repository.list_items(user["id"], parent_id=parent_id, query=q)
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+    page = await asyncio.to_thread(repository.list_items, user["id"], parent_id=parent_id, query=q, limit=limit, offset=offset)
+    response.headers["X-Has-More"] = "1" if len(page) > limit else "0"
+    return page[:limit]
 
 
 @app.get("/api/folders")
 async def list_repository_folders(request: Request):
     storage_user(request)
-    return repository.list_folders()
+    return await asyncio.to_thread(repository.list_folders)
 
 
 @app.post("/api/folders")
 async def create_repository_folder(payload: FolderMetadata, request: Request):
     storage_user(request)
     try:
-        return repository.create_folder(payload.name, payload.parent_id, payload.description, payload.tags)
+        return await asyncio.to_thread(
+            repository.create_folder,
+            payload.name,
+            payload.parent_id,
+            payload.description,
+            payload.tags,
+        )
     except RepositoryError as error:
         raise repository_error(error) from error
 
@@ -688,7 +720,7 @@ async def download_repository_folder(folder_id: str, request: Request):
     try:
         with tempfile.NamedTemporaryFile(dir=repository.root, prefix="folder-", suffix=".zip", delete=False) as target:
             archive_path = Path(target.name)
-        archive_name = repository.create_folder_archive(folder_id, archive_path)
+        archive_name = await asyncio.to_thread(repository.create_folder_archive, folder_id, archive_path)
         return FileResponse(
             archive_path,
             media_type="application/zip",
@@ -850,7 +882,11 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
 
     job = store.create_draft(current_session, safe_name, destination)
     try:
-        pdf_path, pages = converter.convert(job)
+        # Office conversion invokes external applications and can take seconds
+        # or minutes. Keep it off the event loop so health checks and other
+        # browser requests remain responsive during conversion.
+        async with conversion_lock:
+            pdf_path, pages = await asyncio.to_thread(converter.convert, job)
         job = store.update(job["id"], state="ready", message="文件已准备完成", pdf_path=str(pdf_path), pages=pages)
     except JobError as error:
         job = store.update(job["id"], state="failed", message=str(error))

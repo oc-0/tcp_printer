@@ -1,51 +1,40 @@
 # TCP Printer
 
-一个面向局域网的自助打印 Web 服务。用户通过手机或电脑浏览器上传文件、预览转换后的 PDF、选择打印选项并提交任务；服务端负责文件转换、排队和调用本机打印机。
-
-> 本项目定位为局域网内的自助打印工具。请仅在受信任的网络中部署，并由管理员负责设备、文件和打印队列的管理。
+一款面向局域网的cp1025自助打印与资料库 Web 服务。
 
 ## 功能
 
-- 响应式网页，支持手机和桌面浏览器。
-- 支持 PDF、JPG、PNG、DOC、DOCX、XLS、XLSX、PPT、PPTX 上传。
-- 本地 PDF.js 预览，不依赖外部 CDN。
-- 黑白/彩色、份数、页码范围、纵向/横向方向、全部/奇数/偶数页和单面打印。
-- SQLite 任务队列，支持取消等待任务、停止后续打印和管理员查看任务。
-- 自动清理过期上传文件和已结束任务，避免 `storage/` 持续增长。
-- 三种后端模式：`dry-run`、`cups` 和 `windows`。
-- Windows 下可使用 Microsoft Word 转换 DOC/DOCX，以提高包含复杂公式的 Word 文档的保真度。
-- 独立资料库支持学号登录、首次改密、文件上传、文件夹、搜索、标签、单文件/整文件夹 ZIP 下载和发布者权限。
-- 资料库原件与打印临时文件使用独立数据库和目录，ZIP 只读取内部清单，不自动解压。
+### 打印服务
 
-## 架构
+- PDF、图片、DOC/DOCX、XLS/XLSX、PPT/PPTX 上传与 PDF 预览。
+- 黑白/彩色、份数、页码范围、纵向/横向、全部/奇数/偶数页打印。
+- `dry-run`、Windows 和 Ubuntu/CUPS 三种模式。
+- SQLite 打印队列、任务取消、状态查询和自动清理。
+- Windows 下 DOC/DOCX 优先使用 Microsoft Word 导出 PDF，适合复杂公式。
 
-```text
-浏览器
-  -> 上传文件
-  -> 转换为 PDF
-  -> PDF.js 预览
-  -> SQLite 打印队列
-  -> CUPS 或 Windows 打印队列
-  -> 本地打印机
-```
+### 资料库
+
+- 学号登录；新账号初始密码为 `111111`，首次登录必须修改。
+- 文件和文件夹统一管理，支持新建、重命名、简介、标签和搜索。
+- 上传单个文件或整个文件夹，保留文件夹层级结构。
+- 支持任意文件类型，不预览或转换资料库文件。
+- 文件下载、文件夹 ZIP 下载、历史版本和回收站。
+- 删除内容按 `TCP_PRINTER_RETENTION_HOURS` 保留，管理员可以恢复或彻底删除。
+- 资料库不限制总容量和单文件大小；容量受磁盘空间限制。
 
 ## 快速开始
 
 需要 Python 3.10 或更高版本。
 
 ```powershell
-git clone https://github.com/<your-account>/tcp_printer.git
-cd tcp_printer
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe run.py
 ```
 
-浏览器访问 `http://127.0.0.1:8080`。默认是 `dry-run` 模式：任务会模拟完成，不会调用真实打印机。
+浏览器访问 `http://127.0.0.1:8080`。局域网其他设备访问 `http://<Mini-PC局域网IP>:8080`。服务监听地址应设置为 `0.0.0.0`，并允许 Windows 防火墙放行 TCP 8080。
 
-PowerShell 禁止执行虚拟环境激活脚本时，无需修改执行策略，直接使用 `.venv\Scripts\python.exe` 即可。
-
-运行基础测试：
+运行测试：
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
@@ -53,58 +42,45 @@ PowerShell 禁止执行虚拟环境激活脚本时，无需修改执行策略，
 
 ## 配置
 
-在项目根目录创建 `.env`。此文件已被 Git 忽略，不能提交密码、令牌或实际网络地址。
-
-最小配置示例：
-
-```ini
-TCP_PRINTER_MODE=dry-run
-TCP_PRINTER_HOST=0.0.0.0
-TCP_PRINTER_PORT=8080
-```
-
-常用配置：
-
-| 配置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `TCP_PRINTER_MODE` | `dry-run` | `dry-run`、`cups` 或 `windows` |
-| `TCP_PRINTER_QUEUE` | `CP1025` | 系统中显示的打印机队列名称 |
-| `TCP_PRINTER_HOST` | `0.0.0.0` | Web 服务监听地址 |
-| `TCP_PRINTER_PORT` | `8080` | Web 服务端口 |
-| `TCP_PRINTER_OFFICE_CONVERTER` | `auto` | `auto`、`word` 或 `libreoffice` |
-| `TCP_PRINTER_MAX_UPLOAD_MB` | `200` | 单个上传文件的最大大小（MB） |
-| `TCP_PRINTER_RETENTION_HOURS` | `24` | 已结束任务及其文件的保留时间（小时） |
-| `TCP_PRINTER_ADMIN_TOKEN` | 空 | 管理页面访问令牌；为空时禁用管理页面 |
-| `TCP_PRINTER_ADMIN_STUDENT_ID` | 空 | 后门管理员学号；该账号始终具有管理员权限且不显示在账号管理列表中 |
-| `TCP_PRINTER_ADMIN_PASSWORD` | 空 | 后门管理员密码；至少 6 位，配置后服务启动时自动创建或同步隐藏账号 |
-| `TCP_PRINTER_STORAGE_SESSION_HOURS` | `24` | 资料库登录会话有效时间（小时） |
-
-## Windows 部署
-
-Windows 模式适合需要准确转换复杂 DOC/DOCX 公式的场景。
-
-### 前提条件
-
-1. 安装并确认 Windows 能正常打印测试页的打印机驱动。
-2. 安装 Microsoft Word 桌面版。首次部署前，以运行服务的 Windows 用户手动启动一次 Word，完成许可证或首次启动提示。
-3. 安装 Python 依赖：`pywin32` 和 `PyMuPDF` 已在 `requirements.txt` 中列出。
-
-示例 `.env`：
 
 ```ini
 TCP_PRINTER_MODE=windows
-TCP_PRINTER_QUEUE=你的 Windows 打印机名称
-TCP_PRINTER_OFFICE_CONVERTER=auto
-TCP_PRINTER_WINDOWS_PRINT_DPI=300
-TCP_PRINTER_WINDOWS_WAIT_SECONDS=900
-TCP_PRINTER_WINDOWS_STALL_SECONDS=60
 TCP_PRINTER_HOST=0.0.0.0
 TCP_PRINTER_PORT=8080
+TCP_PRINTER_QUEUE=HP LaserJet Professional CP1020 Series
+TCP_PRINTER_OFFICE_CONVERTER=auto
+TCP_PRINTER_RETENTION_HOURS=24
+TCP_PRINTER_ADMIN_TOKEN=请替换为随机令牌
+TCP_PRINTER_STORAGE_SESSION_HOURS=24
 ```
 
-在 Windows 中，`TCP_PRINTER_OFFICE_CONVERTER=auto` 会让 DOC/DOCX 优先交给 Microsoft Word 导出 PDF；Excel 和 PowerPoint 等其他 Office 文件仍需要 LibreOffice。若只允许 Word 转换 DOC/DOCX，可设置为 `word`。
+| 配置项 | 说明 |
+| --- | --- |
+| `TCP_PRINTER_MODE` | `dry-run`、`windows` 或 `cups`；默认 `dry-run` |
+| `TCP_PRINTER_QUEUE` | Windows 打印机名称或 CUPS 队列名称 |
+| `TCP_PRINTER_OFFICE_CONVERTER` | `auto`、`word` 或 `libreoffice` |
+| `TCP_PRINTER_MAX_UPLOAD_MB` | 打印服务单文件上限，默认 200 MB |
+| `TCP_PRINTER_RETENTION_HOURS` | 打印任务文件和资料库回收站保留时间 |
+| `TCP_PRINTER_ADMIN_TOKEN` | 管理员登录令牌；为空时禁用管理员页面 |
+| `TCP_PRINTER_ADMIN_STUDENT_ID` | 隐藏后门管理员学号，可选 |
+| `TCP_PRINTER_ADMIN_PASSWORD` | 隐藏后门管理员密码，可选，至少 6 位 |
+| `TCP_PRINTER_RELOAD` | 开发环境代码自动重载，生产环境建议 `false` |
 
-Word 自动化需要可交互的用户会话。不要使用 `LocalSystem` 或没有桌面会话的 Windows 服务账户运行它。项目提供了一个“用户登录时运行”的计划任务脚本：
+## Windows 部署
+
+1. 安装 Microsoft Word 桌面版、打印机驱动和 Python。
+2. 使用运行服务的 Windows 用户手动启动一次 Word，完成首次启动提示。
+3. 设置 `.env`：
+
+```ini
+TCP_PRINTER_MODE=windows
+TCP_PRINTER_OFFICE_CONVERTER=auto
+TCP_PRINTER_QUEUE=你的 Windows 打印机名称
+```
+
+`auto` 模式会使用 Word 转换 DOC/DOCX；其他 Office 文件使用 LibreOffice。转换需要交互式桌面会话，不能使用 `LocalSystem` 账户。
+
+注册用户登录时自动启动：
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
@@ -112,132 +88,64 @@ Set-ExecutionPolicy -Scope Process Bypass
 Start-ScheduledTask -TaskName "TCP Printer"
 ```
 
-删除该计划任务：
+计划任务由 `deploy/run-windows-task.ps1` 监控服务，日志写入 `data/windows-task.stdout.log` 和 `data/windows-task.stderr.log`。删除任务：
 
 ```powershell
 .\deploy\register-windows-task.ps1 -Remove
 ```
-
-如果 PowerShell 报错“无法将 `InteractiveToken` 转换为 `LogonTypeEnum`”，说明执行的是旧版脚本；`New-ScheduledTaskPrincipal` 应使用 `-LogonType Interactive`。请确认当前目录是本项目目录 `C:\Users\lenovo\Desktop\tcp_printer`，再重新注册：
-
-```powershell
-Set-Location C:\Users\lenovo\Desktop\tcp_printer
-Set-ExecutionPolicy -Scope Process Bypass
-.\deploy\register-windows-task.ps1 -Remove
-.\deploy\register-windows-task.ps1
-Start-ScheduledTask -TaskName "TCP Printer"
-Get-ScheduledTask -TaskName "TCP Printer" | Select-Object TaskName, State
-Get-ScheduledTaskInfo -TaskName "TCP Printer" | Select-Object LastRunTime, LastTaskResult
-```
-
-`LastTaskResult` 为 `267009`（十六进制 `0x00041301`）表示任务正在运行，不是失败；任务完成或退出后会显示其他结果码。如果实际使用的是另一个目录（例如 `C:\tcp_printer`），需要在该目录同步本项目最新的 `deploy\register-windows-task.ps1`，否则仍会执行旧脚本。
-
-Windows 打印队列可尝试报告缺纸、离线、卡纸、需要人工处理等状态，但具体信息取决于打印机驱动。任务从 Windows 队列中消失不严格等同于最后一页已经出纸。
 
 ## Ubuntu / CUPS 部署
 
-Ubuntu 模式适合使用 CUPS 管理本地 USB 或网络打印机的环境。
-
-安装运行依赖：
-
 ```bash
 sudo apt update
-sudo apt install -y python3-venv python3-pip libreoffice-core libreoffice-writer \
-  libreoffice-calc libreoffice-impress cups cups-client cups-filters
-
+sudo apt install -y python3-venv python3-pip libreoffice cups cups-client cups-filters
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-```
-
-确认 CUPS 已添加打印机并记录实际队列名称：
-
-```bash
 lpstat -p
-lpoptions -p <queue-name> -l
 ```
 
-示例 `.env`：
+`.env` 示例：
 
 ```ini
 TCP_PRINTER_MODE=cups
 TCP_PRINTER_QUEUE=your-cups-queue
 TCP_PRINTER_OFFICE_CONVERTER=libreoffice
-TCP_PRINTER_HOST=0.0.0.0
-TCP_PRINTER_PORT=8080
 ```
 
-若打印机 PPD 使用 `ColorModel` 而非默认的 `print-color-mode`，还需要设置：
-
-```ini
-TCP_PRINTER_COLOR_OPTION=ColorModel
-TCP_PRINTER_COLOR_MONO=Gray
-TCP_PRINTER_COLOR_COLOR=RGB
-```
-
-LibreOffice 无法可靠保持某些旧版 OLE 公式对象（例如 `Microsoft Equation 3.0`）的版式。涉及复杂公式的 Word 文档建议由 Microsoft Word 导出 PDF 后上传，或使用 Windows + Word 模式。
-
-项目附带 systemd 服务示例 `deploy/tcp-printer.service`。部署为系统服务前，请确认服务账户拥有项目的 `data/` 和 `storage/` 写入权限，以及访问 CUPS 队列的权限。
-
-## 局域网访问
-
-服务监听 `0.0.0.0` 后，局域网设备可以直接通过 Mini PC 的局域网 IP 访问：
-
-```text
-http://<server-ip>:8080
-```
-
-`127.0.0.1` 只代表访问者自己的设备，不能供手机访问。手机和服务器通常需要处在可互相访问的网络中；还应检查防火墙、访客网络和 Wi-Fi 客户端隔离设置。长期部署建议在路由器中按服务器网卡 MAC 地址配置 DHCP 地址保留。
+如打印机使用 `ColorModel` 选项，再设置 `TCP_PRINTER_COLOR_OPTION=ColorModel`、`TCP_PRINTER_COLOR_MONO=Gray` 和 `TCP_PRINTER_COLOR_COLOR=RGB`。
 
 ## 资料库使用
 
-服务选择页中的“资料库服务”进入资料库登录页。资料库成员使用学号和密码登录，首次登录密码为 `111111`，登录后必须修改密码。
+从首页选择“资料库服务”，使用学号和密码登录。首次密码为 `111111`，登录后修改密码。
 
-- 根目录和子目录使用普通文件夹方式浏览，支持新建、重命名、简介、标签和搜索。
-- “上传”入口可以选择单个文件或文件夹；选择文件夹后会保留目录结构并上传其中的全部文件。
-- 资料库允许存储任意文件类型（包括没有扩展名的文件），资料库只负责保存和下载，不对这些文件做预览或内容转换。
-- 文件支持上传、修改简介和标签、下载、删除以及历史版本管理。
-- 选中文件夹后点击“下载文件夹”，会下载一个保留子目录结构的 ZIP 文件；ZIP 内部文件不会单独加入资料库搜索索引。
-- 文件和文件夹删除后进入回收站，不会立即删除磁盘原件。
-- 管理员可以在管理中心的“回收站”恢复内容，或执行不可恢复的彻底删除。
-- 回收站内容按 `TCP_PRINTER_RETENTION_HOURS` 自动清理；资料库不设置总容量和单文件上传大小上限。
+- 当前目录按分页加载，打开文件夹后只读取该目录内容。
+- “上传”可选择文件或文件夹；文件夹上传会保留目录结构。
+- 文件夹和文件都可以编辑简介、标签、名称和删除。
+- 搜索可查找文件夹和文件名，不搜索 ZIP 内部文件。
+- 选中文件夹可下载包含完整层级结构的 ZIP。
+- 删除后进入回收站；管理员可恢复或彻底删除。
+- 资料库文件保存在 `data/repository.db` 和 `storage/repository/`，不应提交到 Git。
 
-资料库运行数据保存在 `data/repository.db` 和 `storage/repository/`，这些内容属于本机数据，不应上传到 GitHub。
+## 管理员
 
-## 管理页面
+设置 `TCP_PRINTER_ADMIN_TOKEN` 后重启服务，在资料库登录页进入管理员登录。管理员登录需要学号、密码和管理员令牌。
 
-设置 `TCP_PRINTER_ADMIN_TOKEN` 并重启服务后，可访问 `/admin`。管理页面用于查看打印机状态、资料库使用量、账号和最近任务，并执行队列、账号及资料库文件夹管理操作。管理员不提供资料下载按钮；资料库回收站支持恢复或立即彻底删除已删除的文件和文件夹。
+管理中心支持查看打印机状态、打印队列和资料库统计，管理账号权限，以及修改资料库文件夹和回收站内容。管理员不提供资料下载按钮。
 
-请使用足够长的随机令牌，例如：
+生成随机令牌：
 
 ```bash
 openssl rand -hex 32
 ```
 
-如果启用后门管理员，还需要同时设置 `TCP_PRINTER_ADMIN_STUDENT_ID` 和 `TCP_PRINTER_ADMIN_PASSWORD`。服务启动时会自动创建或同步该隐藏账号；登录仍然需要学号、密码和 `TCP_PRINTER_ADMIN_TOKEN`，后门账号不会出现在账号管理列表中。
-
-## 数据与安全
-
-- 上传源文件、转换后的 PDF 和 SQLite 数据库保存在 `storage/` 与 `data/`，默认不应提交到 Git。
-- 自动清理只删除已结束任务和超过保留期的资料库回收站内容；正在转换、排队或打印的任务不会被自动删除。
-- 资料库账号按学号绑定，初始密码为 `111111`，首次登录必须修改；密码只保存 bcrypt（未安装 bcrypt 时使用标准库 scrypt）哈希。登录成员可以查看、下载、上传、修改和删除资料库文件及文件夹；删除内容按 `TCP_PRINTER_RETENTION_HOURS` 保留，期间管理员可以恢复，之后自动物理删除。资料库不设置总容量和单文件上传大小上限，但 ZIP 仍执行路径、条目和解压安全检查。不要直接暴露到互联网。
-- 若必须跨网络访问，请在受控的 VPN、反向代理和 HTTPS 环境中部署，并自行补充认证、限流和审计。
-- 不要将 `.env`、打印队列凭据、私有文档、许可证文件或商业字体提交到公开仓库。
-
-## 已知限制
-
-- CP1025 等不带自动双面器的设备不支持真正的自动双面打印。
-- 打印驱动不一定能提供精确的物理出纸进度或故障原因；网页状态应作为辅助信息，而不是设备面板的替代。
-- 在微信内打开网页时，选择文件和 PDF 预览的行为受微信 WebView 限制。复杂文件通常应先保存到系统“文件”应用，或在系统浏览器中打开页面。
-- 本项目不是 AirPrint 服务。iPhone/iPad 可通过 Safari 使用网页，但不会出现在系统原生“打印”菜单中。
-
 ## 项目结构
 
 ```text
-app/                 FastAPI 应用、任务队列、转换与打印后端
-app/static/          前端资源和本地 PDF.js
+app/                 FastAPI 应用、转换器、队列和打印后端
+app/static/          前端资源与本地 PDF.js
 app/templates/       页面模板
-data/                printer.db 与 repository.db（Git 忽略）
-storage/             打印临时文件与 repository/ 原件（Git 忽略）
-deploy/              Windows 和 systemd 部署脚本
-tests/               基础单元测试
+deploy/              Windows 计划任务与 systemd 脚本
+data/                SQLite 数据库和运行日志
+storage/             打印临时文件和资料库原件
+tests/               单元测试
 ```

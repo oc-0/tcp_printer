@@ -8,3 +8,6 @@ data/*
 storage/*
 !storage/.gitkeep
 fonts/
+
+# 本地 UI 设计参考项目，不属于 TCP Printer 生产代码。
+warm-dashboard-template/

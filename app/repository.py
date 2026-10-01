@@ -419,7 +419,7 @@ class Repository:
             rows = connection.execute(f"SELECT f.* FROM files f WHERE {' AND '.join(clauses)} ORDER BY f.updated_at DESC", values).fetchall()
             return [self._file_payload(connection, row, include_deleted) for row in rows]
 
-    def list_items(self, user_id: str, parent_id: Optional[str] = None, query: str = "") -> list[dict]:
+    def list_items(self, user_id: str, parent_id: Optional[str] = None, query: str = "", limit: Optional[int] = None, offset: int = 0) -> list[dict]:
         """Return folders and files in one directory-like listing."""
         with self._connection() as connection:
             search = query.strip()
@@ -437,6 +437,11 @@ class Repository:
                 needle = f"%{search}%"
                 folder_query += " AND (name LIKE ? OR description LIKE ? OR EXISTS (SELECT 1 FROM folder_tags ft JOIN tags t ON t.id = ft.tag_id WHERE ft.folder_id = groups.id AND t.name LIKE ?))"
                 folder_values.extend([needle, needle, needle])
+            fetch_limit = None
+            if limit is not None:
+                fetch_limit = max(1, min(int(limit) + max(0, int(offset)) + 1, 1000))
+                folder_query += " ORDER BY name COLLATE NOCASE LIMIT ?"
+                folder_values.append(fetch_limit)
             folder_rows = connection.execute(folder_query, folder_values).fetchall()
 
             file_values: list[str] = []
@@ -450,10 +455,20 @@ class Repository:
                 needle = f"%{search}%"
                 clauses.append("(f.original_name LIKE ? OR f.title LIKE ? OR f.description LIKE ? OR f.extension LIKE ? OR EXISTS (SELECT 1 FROM groups g WHERE g.id = f.group_id AND g.name LIKE ?) OR EXISTS (SELECT 1 FROM file_tags ft JOIN tags t ON t.id = ft.tag_id WHERE ft.file_id = f.id AND t.name LIKE ?))")
                 file_values.extend([needle] * 6)
-            file_rows = connection.execute(f"SELECT f.* FROM files f WHERE {' AND '.join(clauses)} ORDER BY f.updated_at DESC", file_values).fetchall()
+            file_query = f"SELECT f.* FROM files f WHERE {' AND '.join(clauses)}"
+            if fetch_limit is not None:
+                file_query += " ORDER BY f.original_name COLLATE NOCASE LIMIT ?"
+                file_values.append(fetch_limit)
+            else:
+                file_query += " ORDER BY f.updated_at DESC"
+            file_rows = connection.execute(file_query, file_values).fetchall()
             items = [self._folder_payload(connection, row) for row in folder_rows]
             items.extend({**self._file_payload(connection, row), "type": "file", "name": row["original_name"]} for row in file_rows)
-            return sorted(items, key=lambda item: (0 if item["type"] == "folder" else 1, item["name"].casefold()))
+            items = sorted(items, key=lambda item: (0 if item["type"] == "folder" else 1, item["name"].casefold()))
+            if limit is None:
+                return items
+            start = max(0, int(offset))
+            return items[start:start + max(1, int(limit)) + 1]
 
     def list_all_files(self, include_deleted: bool = True) -> list[dict]:
         clause = "1 = 1" if include_deleted else "deleted_at IS NULL"

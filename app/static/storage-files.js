@@ -1,6 +1,7 @@
 const fileList = document.getElementById("storage-file-list-body");
 const pageError = document.getElementById("storage-page-error");
 const searchInput = document.getElementById("storage-search-input");
+const loadMoreButton = document.getElementById("storage-load-more");
 const uploadButton = document.getElementById("storage-upload-button");
 const uploadInput = document.getElementById("storage-upload-input");
 const folderUploadInput = document.getElementById("storage-folder-upload-input");
@@ -21,6 +22,9 @@ let editingFolder = null;
 let currentUser = null;
 let currentFolderId = null;
 let itemsRequestId = 0;
+let itemsOffset = 0;
+let itemsHasMore = false;
+let itemsLoading = false;
 
 const byId = (id) => document.getElementById(id);
 
@@ -116,6 +120,7 @@ function selectItem(item) {
 function renderItems() {
   if (!items.length) {
     fileList.innerHTML = '<p class="storage-empty muted">当前目录为空。</p>';
+    loadMoreButton.classList.add("hidden");
     renderDetails();
     return;
   }
@@ -136,6 +141,8 @@ function renderItems() {
     return row;
   }));
   if (!selectedItem || !items.some((item) => item.id === selectedItem.id)) selectItem(items[0]);
+  loadMoreButton.classList.toggle("hidden", !itemsHasMore);
+  loadMoreButton.disabled = itemsLoading;
 }
 
 function setHidden(id, hidden) { byId(id).classList.toggle("hidden", hidden); }
@@ -160,25 +167,33 @@ function renderDetails() {
   byId("storage-download").textContent = isFolder ? "下载文件夹" : "下载文件";
 }
 
-async function loadFolders() {
-  folders = await request("/api/folders");
-  const selects = [byId("folder-parent")];
-  selects.forEach((select) => {
-    const previous = select.value;
-    select.replaceChildren(new Option("根目录", ""), ...folders.map((folder) => new Option(folder.name, folder.id)));
-    if (folders.some((folder) => folder.id === previous)) select.value = previous;
+function cacheFolders(nextItems) {
+  nextItems.filter((item) => item.type === "folder").forEach((folder) => {
+    const index = folders.findIndex((item) => item.id === folder.id);
+    if (index === -1) folders.push(folder);
+    else folders[index] = folder;
   });
 }
 
-async function loadItems() {
+async function loadItems({ append = false } = {}) {
   const requestId = ++itemsRequestId;
+  if (itemsLoading) return;
+  itemsLoading = true;
+  loadMoreButton.disabled = true;
   try {
     const params = new URLSearchParams();
     if (currentFolderId) params.set("parent_id", currentFolderId);
     if (searchInput.value.trim()) params.set("q", searchInput.value.trim());
-    const nextItems = await request(`/api/storage/items${params.toString() ? `?${params}` : ""}`);
+    params.set("limit", "100");
+    params.set("offset", append ? String(itemsOffset) : "0");
+    const response = await fetch(`/api/storage/items?${params}`);
+    const nextItems = await response.json().catch(() => []);
+    if (!response.ok) throw new Error(nextItems.detail || "请求失败");
     if (requestId !== itemsRequestId) return;
-    items = nextItems;
+    items = append ? [...items, ...nextItems] : nextItems;
+    cacheFolders(nextItems);
+    itemsOffset = items.length;
+    itemsHasMore = response.headers.get("X-Has-More") === "1";
     pageError.textContent = "";
     renderBreadcrumb();
     renderItems();
@@ -186,6 +201,10 @@ async function loadItems() {
     if (requestId !== itemsRequestId) return;
     pageError.textContent = error.message;
     fileList.innerHTML = '<p class="storage-empty muted">无法加载资料。</p>';
+  } finally {
+    itemsLoading = false;
+    loadMoreButton.disabled = false;
+    loadMoreButton.classList.toggle("hidden", !itemsHasMore);
   }
 }
 
@@ -197,6 +216,8 @@ async function openFolder(folderId) {
   searchInput.value = "";
   itemsRequestId += 1;
   items = [];
+  itemsOffset = 0;
+  itemsHasMore = false;
   fileList.innerHTML = '<p class="storage-empty muted">正在加载资料...</p>';
   await loadItems();
 }
@@ -264,12 +285,10 @@ async function uploadFolderFiles(fileList) {
     }
     uploadProgressLabel.textContent = "上传完成";
     pageError.textContent = `文件夹上传完成，共 ${files.length} 个文件。`;
-    await loadFolders();
     await loadItems();
   } catch (error) {
     uploadProgressLabel.textContent = "上传未完成";
     pageError.textContent = `文件夹上传未完成：${error.message}`;
-    await loadFolders();
     await loadItems();
   } finally {
     uploadProgressModal.classList.add("hidden");
@@ -283,7 +302,6 @@ function openFolderModal(folder = null) {
   byId("folder-name").value = folder?.name || "";
   byId("folder-description").value = folder?.description || "";
   byId("folder-tags").value = (folder?.tags || []).join(", ");
-  byId("folder-parent").value = folder?.parent_id || currentFolderId || "";
   byId("storage-folder-error").textContent = "";
   folderModal.classList.remove("hidden");
   byId("folder-name").focus();
@@ -291,7 +309,15 @@ function openFolderModal(folder = null) {
 
 function closeFolderModal() { folderModal.classList.add("hidden"); editingFolder = null; }
 
-searchInput.addEventListener("input", () => { clearTimeout(window.storageSearchTimer); window.storageSearchTimer = setTimeout(loadItems, 250); });
+searchInput.addEventListener("input", () => {
+  clearTimeout(window.storageSearchTimer);
+  window.storageSearchTimer = setTimeout(() => {
+    itemsOffset = 0;
+    itemsHasMore = false;
+    loadItems();
+  }, 250);
+});
+loadMoreButton.addEventListener("click", () => loadItems({ append: true }));
 uploadButton.addEventListener("click", () => uploadChoiceModal.classList.remove("hidden"));
 byId("storage-upload-choice-close").addEventListener("click", closeUploadChoice);
 byId("storage-upload-files-choice").addEventListener("click", () => { closeUploadChoice(); uploadInput.click(); });
@@ -317,7 +343,6 @@ byId("storage-delete").addEventListener("click", async () => {
     await request(endpoint, { method: "DELETE" });
     const nextFolder = selectedItem.type === "folder" ? (selectedItem.parent_id || null) : currentFolderId;
     selectedItem = null;
-    await loadFolders();
     await openFolder(nextFolder);
   } catch (error) { pageError.textContent = error.message; }
 });
@@ -335,19 +360,19 @@ metadataForm.addEventListener("submit", async (event) => {
     } else if (selectedItem?.type === "file") {
       await request(`/api/files/${encodeURIComponent(selectedItem.id)}/metadata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: values.get("title"), description: values.get("description"), version: values.get("version"), group_id: selectedItem.group_id || null, tags }) });
     }
-    closeMetadataModal(); await loadFolders(); await loadItems();
+    closeMetadataModal(); await loadItems();
   } catch (error) { byId("storage-modal-error").textContent = error.message; }
 });
 
 folderForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const values = new FormData(folderForm);
-  const payload = { name: String(values.get("name") || "").trim(), description: values.get("description") || "", tags: parseTags(values.get("tags")), parent_id: values.get("parent_id") || null };
+  const payload = { name: String(values.get("name") || "").trim(), description: values.get("description") || "", tags: parseTags(values.get("tags")), parent_id: editingFolder ? (editingFolder.parent_id || null) : (currentFolderId || null) };
   try {
     const url = editingFolder ? `/api/folders/${encodeURIComponent(editingFolder.id)}` : "/api/folders";
     await request(url, { method: editingFolder ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    closeFolderModal(); await loadFolders(); await loadItems();
+    closeFolderModal(); await loadItems();
   } catch (error) { byId("storage-folder-error").textContent = error.message; }
 });
 
-Promise.all([loadFolders(), request("/api/storage/me").then((user) => { currentUser = user; renderStorageUser(user); })]).then(loadItems).catch((error) => { pageError.textContent = error.message; });
+request("/api/storage/me").then((user) => { currentUser = user; renderStorageUser(user); return loadItems(); }).catch((error) => { pageError.textContent = error.message; });
