@@ -88,7 +88,26 @@ Set-ExecutionPolicy -Scope Process Bypass
 Start-ScheduledTask -TaskName "TCP Printer"
 ```
 
-计划任务由 `deploy/run-windows-task.ps1` 监控服务，日志写入 `data/windows-task.stdout.log` 和 `data/windows-task.stderr.log`。删除任务：
+首次注册时脚本会请求一次管理员权限，并为 `.env` 中的端口（默认 8080）创建持久的局域网入站规则。Windows 防火墙规则会跨重启保留，后续开机不需要再次手动放行；若 `.env` 中更改了端口，重新运行注册脚本即可添加新端口规则。
+
+计划任务由 `deploy/run-windows-task.ps1` 监控服务。每次启动会在 `data/windows-task/` 创建一组独立日志：
+
+- `server-时间-启动次数.stdout.log`：对应一次 Python 启动的标准输出。
+- `server-时间-启动次数.stderr.log`：对应一次 Python 启动的 traceback 和错误输出。
+- `monitor.log`：监控启动参数、PID、健康检查、自动重启和子进程退出码。
+- `state.json`：最近一次健康检查、当前 PID、重启次数和日志路径。
+- `last-recovery.json`：本次启动发现上一轮未正常结束时保存的恢复报告，包含系统关机、蓝屏和应用崩溃事件。
+
+监控脚本还会尝试读取最近的 Windows Application Error/WER 事件；日志按 30 天和最近 50 次启动自动清理。发现服务异常时，先复制整个 `data/windows-task/` 目录，再查看 `monitor.log`、`state.json` 和对应时间的 stderr 日志。
+
+如果整台电脑卡死、蓝屏或断电，运行中的监控脚本无法在故障瞬间写日志。下次 Windows 启动并登录后，监控脚本会根据上一次未结束的 `state.json` 和 Windows System 事件生成 `last-recovery.json`，用于判断是意外关机、BugCheck、应用崩溃还是计划任务异常退出。删除任务：
+
+```powershell
+Get-Content .\data\windows-task\monitor.log -Tail 200
+Get-Content .\data\windows-task\state.json
+Get-Content .\data\windows-task\last-recovery.json
+Get-ChildItem .\data\windows-task\server-*.stderr.log | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Get-Content -Tail 200
+```
 
 ```powershell
 .\deploy\register-windows-task.ps1 -Remove

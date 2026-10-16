@@ -7,6 +7,24 @@ $taskName = "TCP Printer"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $monitorPath = Join-Path $PSScriptRoot "run-windows-task.ps1"
 $pythonPath = Join-Path $projectRoot ".venv\Scripts\python.exe"
+$firewallRulePrefix = "TCP Printer HTTP"
+
+function Test-Administrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Get-ConfiguredPort {
+    $envFile = Join-Path $projectRoot ".env"
+    if (Test-Path -LiteralPath $envFile) {
+        $portLine = Select-String -LiteralPath $envFile -Pattern '^\s*TCP_PRINTER_PORT\s*=\s*(\d+)' | Select-Object -First 1
+        if ($portLine -and $portLine.Matches.Count -gt 0) {
+            return [int]$portLine.Matches[0].Groups[1].Value
+        }
+    }
+    return 8080
+}
 
 if (-not (Test-Path -LiteralPath $pythonPath)) {
     throw "Virtual environment Python was not found: $pythonPath"
@@ -19,6 +37,25 @@ if ($Remove) {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
     Write-Output "Removed scheduled task: $taskName"
     exit 0
+}
+
+if (-not (Test-Administrator)) {
+    $powershellPath = Join-Path $PSHOME "powershell.exe"
+    $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    $elevated = Start-Process -FilePath $powershellPath -ArgumentList $arguments -Verb RunAs -Wait -PassThru
+    if ($elevated.ExitCode -ne 0) {
+        throw "Elevated deployment script failed with exit code $($elevated.ExitCode)."
+    }
+    exit 0
+}
+
+$port = Get-ConfiguredPort
+$firewallRuleName = "$firewallRulePrefix $port"
+if (-not (Get-NetFirewallRule -DisplayName $firewallRuleName -ErrorAction SilentlyContinue)) {
+    New-NetFirewallRule -DisplayName $firewallRuleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port -Profile Any -RemoteAddress LocalSubnet | Out-Null
+    Write-Output "Added persistent LAN firewall rule for TCP port $port."
+} else {
+    Write-Output "Persistent LAN firewall rule already exists for TCP port $port."
 }
 
 $userId = "$env:USERDOMAIN\$env:USERNAME"
