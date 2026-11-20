@@ -2,7 +2,7 @@
 
 一款面向局域网的cp1025自助打印与资料库 Web 服务，可部署在Windows或Ubuntu系统。
 
- ![p1](picture\p1.png)
+ ![p1](picture/p1.png)
 
 ## 功能
 
