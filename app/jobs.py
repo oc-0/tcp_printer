@@ -666,7 +666,7 @@ class PrintBackend:
             if devmode is None:
                 raise JobError("CP1025 驱动没有提供可配置的打印参数。")
             self._configure_windows_devmode(devmode, job["color_mode"], job.get("orientation", "portrait"), win32con)
-            dc_handle = win32gui.CreateDC("WINSPOOL", self.settings.queue_name, None, devmode)
+            dc_handle = win32gui.CreateDC("WINSPOOL", self.settings.queue_name, devmode)
             dc = win32ui.CreateDCFromHandle(dc_handle)
             document = fitz.open(str(pdf_path))
             page_numbers = self._windows_page_numbers(job["page_range"], len(document), job.get("page_set", "all"))
