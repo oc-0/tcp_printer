@@ -1,4 +1,4 @@
-param(
+﻿param(
     [int]$HealthIntervalSeconds = 15,
     [int]$HealthTimeoutSeconds = 5,
     [int]$MaxHealthFailures = 3,
@@ -54,7 +54,7 @@ function Write-State {
         stderr_log = $script:stderrLog
         monitor_log = $monitorLog
     }
-    $temporaryState = "$statePath.tmp"
+    $temporaryState = "{0}.tmp" -f $statePath
     $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $temporaryState -Encoding UTF8
     Move-Item -LiteralPath $temporaryState -Destination $statePath -Force
 }
@@ -123,7 +123,7 @@ function Write-RecoveryReport {
             system_events = $systemEvents
             assessment = "上一次监控状态未正常结束，可能是整机重启、断电、蓝屏、计划任务被终止或监控进程崩溃。请结合 system_events、stderr 日志和 Windows 可靠性监视器判断。"
         }
-        $temporaryReport = "$recoveryReportPath.tmp"
+        $temporaryReport = "{0}.tmp" -f $recoveryReportPath
         $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $temporaryReport -Encoding UTF8
         Move-Item -LiteralPath $temporaryReport -Destination $recoveryReportPath -Force
         Write-MonitorLog "WARN" ("发现上一次监控未正常结束，已生成恢复报告: {0}" -f $recoveryReportPath)

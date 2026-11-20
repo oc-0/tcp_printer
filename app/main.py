@@ -6,6 +6,7 @@ import tempfile
 import asyncio
 import os
 import platform
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -13,7 +14,7 @@ from typing import Optional
 from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from starlette.background import BackgroundTask
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -22,6 +23,7 @@ from pydantic import BaseModel, Field
 from .config import PROJECT_ROOT, get_settings
 from .jobs import ALLOWED_SUFFIXES, FileConverter, JobError, JobStore, PrintBackend, PrintWorker, TERMINAL_STATES, filter_page_set, parse_page_range, validate_source_file
 from .repository import AuthenticationError, Repository, RepositoryError
+from .storage_preview import IMAGE_PREVIEW_TYPES, MAX_TEXT_PREVIEW_BYTES, preview_kind, read_text_preview
 
 
 settings = get_settings()
@@ -31,6 +33,7 @@ backend = PrintBackend(settings)
 worker = PrintWorker(store, backend, settings.storage_dir, settings.retention_hours)
 repository = Repository(settings.data_dir / "repository.db", settings.storage_dir / "repository")
 conversion_lock = asyncio.Lock()
+repository_preview_temp = settings.data_dir / "preview-temp"
 if settings.admin_student_id and settings.admin_password:
     repository.ensure_backdoor_user(settings.admin_student_id, settings.admin_password)
 
@@ -39,6 +42,7 @@ if settings.admin_student_id and settings.admin_password:
 async def lifespan(_: FastAPI):
     store.fail_interrupted_prints()
     repository.purge_deleted(datetime.now(timezone.utc) - timedelta(hours=settings.repository_deleted_retention_hours))
+    purge_repository_preview_temp(force=True)
     worker.start()
     cleanup_task = asyncio.create_task(repository_cleanup_loop())
     yield
@@ -57,6 +61,19 @@ async def repository_cleanup_loop():
             repository.purge_deleted,
             datetime.now(timezone.utc) - timedelta(hours=settings.repository_deleted_retention_hours),
         )
+        await asyncio.to_thread(purge_repository_preview_temp)
+
+
+def purge_repository_preview_temp(max_age_hours: int = 24, force: bool = False) -> None:
+    if not repository_preview_temp.is_dir():
+        return
+    cutoff = datetime.now().timestamp() - max_age_hours * 60 * 60
+    for preview_dir in repository_preview_temp.iterdir():
+        try:
+            if preview_dir.is_dir() and (force or preview_dir.stat().st_mtime < cutoff):
+                shutil.rmtree(preview_dir)
+        except OSError:
+            continue
 
 
 # Windows and some Linux installations do not register .mjs by default.
@@ -664,6 +681,71 @@ async def download_repository_file(file_id: str, request: Request):
         raise repository_error(error) from error
     filename = quote(metadata["original_name"])
     return FileResponse(path, media_type=metadata["mime_type"], headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
+
+
+@app.get("/api/files/{file_id}/preview")
+async def preview_repository_file(file_id: str, request: Request):
+    user = storage_user(request)
+    try:
+        path, metadata = repository.storage_path(file_id, user["id"], audit_action="file.preview")
+    except RepositoryError as error:
+        raise repository_error(error) from error
+
+    kind = preview_kind(metadata["original_name"])
+    if not kind:
+        raise HTTPException(status_code=415, detail="此文件类型暂不支持在线预览。")
+
+    filename = quote(Path(metadata["original_name"]).name)
+    headers = {
+        "Content-Disposition": f"inline; filename*=UTF-8''{filename}",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
+    }
+    if kind == "word":
+        repository_preview_temp.mkdir(parents=True, exist_ok=True)
+        preview_id = uuid.uuid4().hex
+        preview_dir = repository_preview_temp / preview_id
+        preview_dir.mkdir()
+        try:
+            pdf_path = await asyncio.to_thread(converter._convert_office, path, preview_dir)
+            with pdf_path.open("rb") as pdf_file:
+                signature = pdf_file.read(5)
+            if pdf_path.stat().st_size == 0 or signature != b"%PDF-":
+                raise JobError("Microsoft Word 未生成有效的 PDF 预览文件。")
+        except JobError as error:
+            shutil.rmtree(preview_dir, ignore_errors=True)
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        except Exception as error:
+            shutil.rmtree(preview_dir, ignore_errors=True)
+            raise HTTPException(status_code=500, detail="Word 文件转换预览失败。") from error
+        return FileResponse(
+            pdf_path,
+            media_type="application/pdf",
+            headers={**headers, "Content-Disposition": 'inline; filename="preview.pdf"', "X-Preview-Id": preview_id},
+        )
+    if kind == "text":
+        text, truncated = await asyncio.to_thread(read_text_preview, path)
+        if truncated:
+            text += f"\n\n[预览仅显示前 {MAX_TEXT_PREVIEW_BYTES // 1024} KiB]"
+        return PlainTextResponse(text, headers=headers)
+    if kind == "image":
+        media_type = IMAGE_PREVIEW_TYPES[Path(metadata["original_name"]).suffix.lower()]
+        return FileResponse(path, media_type=media_type, headers=headers)
+    return FileResponse(path, media_type="application/pdf", headers=headers)
+
+
+@app.delete("/api/files/{file_id}/preview-temp/{preview_id}")
+async def delete_repository_preview_temp(file_id: str, preview_id: str, request: Request):
+    storage_user(request)
+    try:
+        normalized_id = uuid.UUID(hex=preview_id).hex
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail="无效的预览编号。") from error
+    preview_dir = repository_preview_temp / normalized_id
+    if preview_dir.parent != repository_preview_temp:
+        raise HTTPException(status_code=400, detail="无效的预览编号。")
+    shutil.rmtree(preview_dir, ignore_errors=True)
+    return {"deleted": normalized_id}
 
 
 @app.delete("/api/files/{file_id}")

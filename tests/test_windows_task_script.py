@@ -55,6 +55,17 @@ class WindowsTaskScriptTests(unittest.TestCase):
         self.assertIn("Remove-OldLogs", monitor)
         self.assertIn("Rotate-MonitorLog", monitor)
 
+    def test_monitor_builds_temporary_paths_without_ambiguous_variable_interpolation(self):
+        monitor = (Path(__file__).parents[1] / "deploy" / "run-windows-task.ps1").read_text(encoding="utf-8")
+        self.assertIn('$temporaryState = "{0}.tmp" -f $statePath', monitor)
+        self.assertIn('$temporaryReport = "{0}.tmp" -f $recoveryReportPath', monitor)
+        self.assertNotIn('"$statePath.tmp"', monitor)
+        self.assertNotIn('"$recoveryReportPath.tmp"', monitor)
+
+    def test_monitor_script_has_utf8_bom_for_windows_powershell_5(self):
+        monitor_path = Path(__file__).parents[1] / "deploy" / "run-windows-task.ps1"
+        self.assertTrue(monitor_path.read_bytes().startswith(b"\xef\xbb\xbf"))
+
 
 if __name__ == "__main__":
     unittest.main()

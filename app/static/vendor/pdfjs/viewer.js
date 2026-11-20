@@ -6,6 +6,7 @@ await import("./web/pdf_viewer.mjs");
 const { EventBus, PDFLinkService, PDFViewer } = globalThis.pdfjsViewer;
 const params = new URLSearchParams(window.location.search);
 const file = params.get("file");
+const disableRange = params.get("disableRange") === "true";
 const loading = document.getElementById("loading");
 const error = document.getElementById("error");
 const pageNumber = document.getElementById("page-number");
@@ -21,6 +22,7 @@ const pdfViewer = new PDFViewer({
   viewer: document.getElementById("viewer"),
   eventBus,
   linkService,
+  textLayerMode: 1,
   annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS,
 });
 linkService.setViewer(pdfViewer);
@@ -46,6 +48,8 @@ if (!file) {
   const task = pdfjsLib.getDocument({
     url: file,
     withCredentials: true,
+    disableRange,
+    disableStream: disableRange,
     cMapUrl: new URL("cmaps/", assetBase).href,
     cMapPacked: true,
     standardFontDataUrl: new URL("standard_fonts/", assetBase).href,

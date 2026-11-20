@@ -149,6 +149,26 @@ class ConverterSelectionTests(unittest.TestCase):
         with self.assertRaisesRegex(JobError, "仅支持 DOC 和 DOCX"):
             converter._office_converter_for(Path("report.xlsx"))
 
+    @patch("app.jobs.platform.system", return_value="Windows")
+    def test_word_reports_missing_interactive_logon_session(self, _system):
+        from types import ModuleType
+        from unittest.mock import Mock, patch as mock_patch
+        import sys
+
+        com_error = RuntimeError("logon session does not exist")
+        com_error.hresult = -2147023584
+        pythoncom = ModuleType("pythoncom")
+        pythoncom.CoInitialize = Mock()
+        pythoncom.CoUninitialize = Mock()
+        win32com = ModuleType("win32com")
+        win32com.__path__ = []
+        win32com_client = ModuleType("win32com.client")
+        win32com_client.DispatchEx = Mock(side_effect=com_error)
+        with mock_patch.dict(sys.modules, {"pythoncom": pythoncom, "win32com": win32com, "win32com.client": win32com_client}):
+            with tempfile.TemporaryDirectory() as directory:
+                with self.assertRaisesRegex(JobError, "交互式登录会话"):
+                    FileConverter._convert_word(Path(directory) / "source.doc", Path(directory))
+
 
 class WindowsPrintTests(unittest.TestCase):
     def test_expands_page_ranges_to_zero_based_page_numbers(self):
@@ -161,6 +181,17 @@ class WindowsPrintTests(unittest.TestCase):
     def test_keeps_none_when_windows_driver_does_not_return_a_job_id(self):
         backend = PrintBackend(replace(get_settings(), mode="windows"))
         self.assertIsNone(backend._windows_submitted_job_id(None, None, set(), None))
+
+    def test_windows_print_configures_landscape_devmode(self):
+        import win32con
+
+        devmode = SimpleNamespace(Fields=0, Color=None, Copies=None, Orientation=None)
+        backend = PrintBackend(replace(get_settings(), mode="windows"))
+        backend._configure_windows_devmode(devmode, "color", "landscape", win32con)
+        self.assertTrue(devmode.Fields & win32con.DM_ORIENTATION)
+        self.assertEqual(devmode.Orientation, win32con.DMORIENT_LANDSCAPE)
+        self.assertEqual(devmode.Color, win32con.DMCOLOR_COLOR)
+        self.assertEqual(devmode.Copies, 1)
 
 
 class CupsPrintTests(unittest.TestCase):

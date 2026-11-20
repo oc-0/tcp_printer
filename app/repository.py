@@ -736,7 +736,13 @@ class Repository:
             row = connection.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
             return self._file_payload(connection, row)
 
-    def storage_path(self, file_id: str, user_id: Optional[str] = None, include_deleted: bool = False) -> tuple[Path, dict]:
+    def storage_path(
+        self,
+        file_id: str,
+        user_id: Optional[str] = None,
+        include_deleted: bool = False,
+        audit_action: str = "file.download",
+    ) -> tuple[Path, dict]:
         with self._connection() as connection:
             row = connection.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
             if not row or (row["deleted_at"] and not include_deleted):
@@ -744,7 +750,7 @@ class Repository:
             path = (self.originals / row["storage_name"]).resolve()
             if self.originals.resolve() not in path.parents or not path.is_file():
                 raise RepositoryError("文件存储不存在。")
-            self._audit(connection, "file.download", user_id, file_id)
+            self._audit(connection, audit_action, user_id, file_id)
             return path, self._file_payload(connection, row, include_deleted)
 
     @staticmethod

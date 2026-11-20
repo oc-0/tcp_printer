@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>资料库</title>
   <link rel="stylesheet" href="/static/styles.css?v=11">
-  <link rel="stylesheet" href="/static/storage.css?v=7">
+  <link rel="stylesheet" href="/static/storage.css?v=9">
 </head>
 <body class="storage-page">
   <header class="app-header storage-header">
@@ -38,6 +38,7 @@
         <dl class="storage-detail-properties" id="file-detail-properties"></dl>
         <div class="storage-detail-actions">
           <button class="secondary-button hidden" id="storage-folder-open" type="button">打开文件夹</button><button class="secondary-button hidden" id="storage-edit-folder" type="button">编辑文件夹</button>
+          <button class="secondary-button hidden" id="storage-preview" type="button">预览</button>
           <button class="secondary-button hidden" id="storage-edit" type="button">编辑资料</button><button class="danger-button hidden" id="storage-delete" type="button">删除</button><button class="primary-button hidden" id="storage-download" type="button">下载文件</button>
         </div>
       </aside>
@@ -72,6 +73,15 @@
       <div class="storage-modal-actions"><button class="secondary-button" id="storage-folder-cancel" type="button">取消</button><button class="primary-button" type="submit">保存</button></div>
     </form>
   </div>
-  <script src="/static/storage-files.js?v=16"></script>
+  <div class="storage-preview-modal hidden" id="storage-preview-modal" role="dialog" aria-modal="true" aria-labelledby="storage-preview-title">
+    <section class="storage-preview-panel">
+      <header class="storage-preview-heading"><h2 id="storage-preview-title">文件预览</h2><button class="icon-button" id="storage-preview-close" type="button" aria-label="关闭预览">×</button></header>
+      <p class="storage-preview-error" id="storage-preview-error" role="alert"></p>
+      <iframe class="storage-preview-frame hidden" id="storage-preview-frame" title="PDF 预览" sandbox="allow-scripts allow-same-origin"></iframe>
+      <img class="storage-preview-image hidden" id="storage-preview-image" alt="">
+      <pre class="storage-preview-text hidden" id="storage-preview-text"></pre>
+    </section>
+  </div>
+  <script src="/static/storage-files.js?v=22"></script>
 </body>
 </html>

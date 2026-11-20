@@ -67,6 +67,7 @@ function activityLabel(activity) {
     "file.metadata": "修改了资料信息",
     "file.version": "上传了新版本",
     "file.download": "下载了资料",
+    "file.preview": "预览了资料",
     "folder.create": "创建了文件夹",
     "folder.metadata": "修改了文件夹",
     "folder.delete": "删除了文件夹",
@@ -223,6 +224,9 @@ function renderStorageFiles(files, folders) {
       cell.append(action("编辑", () => editStorageFolder(file), actionOptions("secondary-action")));
       cell.append(action("删除", () => deleteStorageFolder(file.id)));
     } else if (!deleted) {
+      if (supportsStoragePreview(file)) {
+        cell.append(action("预览", () => window.open(`/api/files/${encodeURIComponent(file.id)}/preview`, "_blank", "noopener"), actionOptions("secondary-action")));
+      }
       cell.append(action("编辑资料", () => editStorageFile(file), actionOptions("secondary-action")));
       cell.append(action("删除", () => deleteStorageFile(file.id)));
     } else {
@@ -230,6 +234,11 @@ function renderStorageFiles(files, folders) {
     }
     return row;
   }));
+}
+
+function supportsStoragePreview(file) {
+  return [".pdf", ".doc", ".docx", ".txt", ".md", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]
+    .includes(String(file.extension || "").toLowerCase());
 }
 
 function renderRecycleBin(recycleBin) {

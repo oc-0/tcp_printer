@@ -79,6 +79,18 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(item["original_name"], "drawing.SLDPRT")
         self.assertEqual(item["extension"], ".sldprt")
 
+    def test_storage_preview_is_recorded_as_preview_not_download(self):
+        root = Path(self.directory.name)
+        source = root / "notes.txt"
+        source.write_text("资料内容", encoding="utf-8")
+        item = self.repository.save_uploaded_file(source, "notes.txt", self.owner["id"], {}, None)
+
+        self.repository.storage_path(item["id"], self.other["id"], audit_action="file.preview")
+
+        activity = self.repository.list_recent_activity(10)
+        self.assertEqual(activity[0]["action"], "file.preview")
+        self.assertNotIn("file.download", [entry["action"] for entry in activity])
+
     def test_zip_rejects_path_traversal_and_accepts_safe_entries(self):
         root = Path(self.directory.name)
         unsafe = root / "unsafe.zip"

@@ -387,6 +387,12 @@ class FileConverter:
             try:
                 word = DispatchEx("Word.Application")
             except Exception as error:
+                if getattr(error, "hresult", None) == -2147023584:
+                    raise JobError(
+                        "无法启动 Microsoft Word：服务进程没有可用的 Windows 交互式登录会话。"
+                        "请使用已登录桌面的 Windows 用户运行服务，并将计划任务设置为“仅当用户登录时运行”；"
+                        "不要使用 SYSTEM 或服务账户。"
+                    ) from error
                 raise JobError("无法启动 Microsoft Word。请确认已安装桌面版 Word，且当前服务账户可以启动它。") from error
             try:
                 word.Visible = False
@@ -579,6 +585,17 @@ class PrintBackend:
         return age >= getattr(self.settings, "windows_stall_seconds", 60)
 
     @staticmethod
+    def _configure_windows_devmode(devmode, color_mode: str, orientation: str, win32con) -> None:
+        devmode.Fields |= win32con.DM_COLOR | win32con.DM_COPIES | win32con.DM_ORIENTATION
+        devmode.Color = win32con.DMCOLOR_COLOR if color_mode == "color" else win32con.DMCOLOR_MONOCHROME
+        devmode.Copies = 1
+        devmode.Orientation = (
+            win32con.DMORIENT_LANDSCAPE
+            if orientation == "landscape"
+            else win32con.DMORIENT_PORTRAIT
+        )
+
+    @staticmethod
     def _cups_env() -> Dict[str, str]:
         environment = os.environ.copy()
         environment["LC_ALL"] = "C"
@@ -629,6 +646,7 @@ class PrintBackend:
         try:
             import fitz
             import win32con
+            import win32gui
             import win32print
             import win32ui
             from PIL import ImageWin
@@ -647,15 +665,9 @@ class PrintBackend:
             devmode = win32print.GetPrinter(printer, 2)["pDevMode"]
             if devmode is None:
                 raise JobError("CP1025 驱动没有提供可配置的打印参数。")
-            devmode.Fields |= win32con.DM_COLOR | win32con.DM_COPIES
-            devmode.Color = win32con.DMCOLOR_COLOR if job["color_mode"] == "color" else win32con.DMCOLOR_MONOCHROME
-            devmode.Copies = 1
-            # pywin32's CreatePrinterDC accepts only the printer name on some
-            # versions, so use the driver's printer DC and orient the rendered
-            # page image below. This avoids passing an unsupported fourth
-            # argument that causes the Windows spooler call to fail.
-            dc = win32ui.CreateDC()
-            dc.CreatePrinterDC(self.settings.queue_name)
+            self._configure_windows_devmode(devmode, job["color_mode"], job.get("orientation", "portrait"), win32con)
+            dc_handle = win32gui.CreateDC("WINSPOOL", self.settings.queue_name, None, devmode)
+            dc = win32ui.CreateDCFromHandle(dc_handle)
             document = fitz.open(str(pdf_path))
             page_numbers = self._windows_page_numbers(job["page_range"], len(document), job.get("page_set", "all"))
             if not page_numbers:
