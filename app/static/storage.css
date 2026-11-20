@@ -118,6 +118,8 @@
 .storage-preview-panel { display: flex; flex-direction: column; width: min(1100px, 100%); height: min(820px, calc(100vh - 40px)); min-height: 280px; overflow: hidden; background: #fff; border: 1px solid var(--border); border-radius: 5px; box-shadow: 0 16px 40px rgba(31, 35, 40, .25); }
 .storage-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
 .storage-preview-heading h2 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.storage-preview-status { margin: 10px 14px 0; color: var(--muted); font-size: 13px; }
+.storage-preview-progress { display: block; width: calc(100% - 28px); height: 8px; margin: 8px 14px 10px; accent-color: var(--primary); }
 .storage-preview-error { margin: 0; color: var(--danger); font-size: 13px; }
 .storage-preview-error:empty { display: none; }
 .storage-preview-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: #f6f8fa; }

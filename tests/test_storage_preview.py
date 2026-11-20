@@ -56,6 +56,10 @@ class StoragePreviewTests(unittest.TestCase):
         self.assertNotIn("storage-preview-copy", storage_script)
         self.assertNotIn("复制全文", storage_script)
         self.assertIn('"X-Preview-Id": preview_id', (Path(__file__).parents[1] / "app" / "main.py").read_text(encoding="utf-8"))
+        self.assertIn("正在启动 Word 并转换文件", storage_script)
+        self.assertIn("正在接收 PDF", storage_script)
+        self.assertIn("正在加载预览", storage_script)
+        self.assertIn("response.body.getReader()", storage_script)
 
 
 if __name__ == "__main__":

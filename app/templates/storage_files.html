@@ -76,12 +76,14 @@
   <div class="storage-preview-modal hidden" id="storage-preview-modal" role="dialog" aria-modal="true" aria-labelledby="storage-preview-title">
     <section class="storage-preview-panel">
       <header class="storage-preview-heading"><h2 id="storage-preview-title">文件预览</h2><button class="icon-button" id="storage-preview-close" type="button" aria-label="关闭预览">×</button></header>
+      <p class="storage-preview-status hidden" id="storage-preview-status" role="status" aria-live="polite"></p>
+      <progress class="storage-preview-progress hidden" id="storage-preview-progress" aria-label="预览加载进度"></progress>
       <p class="storage-preview-error" id="storage-preview-error" role="alert"></p>
       <iframe class="storage-preview-frame hidden" id="storage-preview-frame" title="PDF 预览" sandbox="allow-scripts allow-same-origin"></iframe>
       <img class="storage-preview-image hidden" id="storage-preview-image" alt="">
       <pre class="storage-preview-text hidden" id="storage-preview-text"></pre>
     </section>
   </div>
-  <script src="/static/storage-files.js?v=22"></script>
+  <script src="/static/storage-files.js?v=23"></script>
 </body>
 </html>

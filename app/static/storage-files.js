@@ -214,6 +214,7 @@ function closePreview() {
   byId("storage-preview-image").removeAttribute("src");
   byId("storage-preview-text").textContent = "";
   byId("storage-preview-error").textContent = "";
+  setPreviewStage("");
 }
 
 function releasePreviewTemp(temp = previewTemp) {
@@ -223,6 +224,51 @@ function releasePreviewTemp(temp = previewTemp) {
     method: "DELETE",
     keepalive: true,
   }).catch(() => {});
+}
+
+function setPreviewStage(message, progress = null) {
+  const status = byId("storage-preview-status");
+  const bar = byId("storage-preview-progress");
+  status.textContent = message;
+  status.classList.toggle("hidden", !message);
+  bar.classList.toggle("hidden", progress === null);
+  if (progress === null) return;
+  if (progress.total > 0) {
+    bar.max = progress.total;
+    bar.value = progress.loaded;
+    bar.removeAttribute("aria-valuetext");
+    status.textContent = `${message} ${Math.round(progress.loaded / progress.total * 100)}%`;
+  } else {
+    bar.removeAttribute("value");
+    bar.setAttribute("aria-valuetext", message);
+  }
+}
+
+async function readPreviewBlob(response, onProgress) {
+  const total = Number(response.headers.get("Content-Length")) || 0;
+  if (!response.body?.getReader) {
+    const blob = await response.blob();
+    onProgress(blob.size, total || blob.size);
+    return blob;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let loaded = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.byteLength;
+    onProgress(loaded, total);
+  }
+  return new Blob(chunks, { type: response.headers.get("Content-Type") || "application/pdf" });
+}
+
+function showPreviewWhenReady(frame, requestId) {
+  frame.onload = () => {
+    if (requestId !== previewRequestId || previewModal.classList.contains("hidden")) return;
+    setPreviewStage("");
+  };
 }
 
 async function openPreview(item) {
@@ -241,12 +287,14 @@ async function openPreview(item) {
   image.classList.add("hidden");
   text.classList.add("hidden");
   byId("storage-preview-error").textContent = "";
+  setPreviewStage("");
   previewModal.classList.remove("hidden");
   if ([".doc", ".docx"].includes(extension)) {
     frame.classList.remove("hidden");
     frame.src = "about:blank";
     let temp = null;
     try {
+      setPreviewStage("正在启动 Word 并转换文件…", { loaded: 0, total: 0 });
       const response = await fetch(url);
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -255,16 +303,22 @@ async function openPreview(item) {
       const previewId = response.headers.get("X-Preview-Id");
       temp = previewId ? { fileId: item.id, previewId } : null;
       if (requestId === previewRequestId) previewTemp = temp;
-      const pdf = await response.blob();
+      setPreviewStage("Word 转换完成，正在接收 PDF…", { loaded: 0, total: Number(response.headers.get("Content-Length")) || 0 });
+      const pdf = await readPreviewBlob(response, (loaded, total) => {
+        if (requestId === previewRequestId) setPreviewStage("正在接收 PDF…", { loaded, total });
+      });
       if (requestId !== previewRequestId || previewModal.classList.contains("hidden")) {
         releasePreviewTemp(temp);
         return;
       }
       previewObjectUrl = URL.createObjectURL(pdf);
+      setPreviewStage("PDF 已接收，正在加载预览…", { loaded: 0, total: 0 });
+      showPreviewWhenReady(frame, requestId);
       frame.src = `/static/vendor/pdfjs/viewer.html?file=${encodeURIComponent(previewObjectUrl)}&disableRange=true`;
     } catch (error) {
       releasePreviewTemp(temp);
       if (requestId === previewRequestId) {
+        setPreviewStage("");
         frame.classList.add("hidden");
         byId("storage-preview-error").textContent = `Word 转 PDF 预览失败：${error.message}`;
       }
@@ -280,12 +334,18 @@ async function openPreview(item) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.detail || `预览请求失败（${response.status}）`);
       }
-      const pdf = await response.blob();
+      setPreviewStage("正在接收 PDF…", { loaded: 0, total: Number(response.headers.get("Content-Length")) || 0 });
+      const pdf = await readPreviewBlob(response, (loaded, total) => {
+        if (requestId === previewRequestId) setPreviewStage("正在接收 PDF…", { loaded, total });
+      });
       if (requestId !== previewRequestId || previewModal.classList.contains("hidden")) return;
       previewObjectUrl = URL.createObjectURL(pdf);
+      setPreviewStage("PDF 已接收，正在加载预览…", { loaded: 0, total: 0 });
+      showPreviewWhenReady(frame, requestId);
       frame.src = `/static/vendor/pdfjs/viewer.html?file=${encodeURIComponent(previewObjectUrl)}&disableRange=true`;
     } catch (error) {
       if (requestId === previewRequestId) {
+        setPreviewStage("");
         frame.classList.add("hidden");
         byId("storage-preview-error").textContent = `PDF 预览失败：${error.message}`;
       }
