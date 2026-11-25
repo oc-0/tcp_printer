@@ -63,6 +63,8 @@ class StoragePreviewTests(unittest.TestCase):
         self.assertIn("uploadWithRetry", storage_script)
         self.assertIn("失败 ${failed.length} 个", storage_script)
         self.assertIn("正在重试", storage_script)
+        self.assertIn('const allFolders = await request("/api/folders")', storage_script)
+        self.assertIn('String(error.message || "").includes("已存在")', storage_script)
 
 
 if __name__ == "__main__":

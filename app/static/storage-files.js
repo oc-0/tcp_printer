@@ -478,12 +478,30 @@ async function uploadFolderFiles(fileList) {
   const getOrCreateFolder = async (name, parentId) => {
     const key = folderKey(parentId, name);
     if (folderIds.has(key)) return folderIds.get(key);
-    const existing = folders.find((folder) => folder.parent_id === (parentId || null) && folder.name === name);
-    const folder = existing || await request("/api/folders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, parent_id: parentId || null, description: "", tags: [] }),
-    });
+    let existing = folders.find((folder) => folder.parent_id === (parentId || null) && folder.name === name);
+    if (!existing) {
+      const allFolders = await request("/api/folders");
+      existing = allFolders.find((folder) => folder.parent_id === (parentId || null) && folder.name === name);
+      if (existing) cacheFolders(allFolders);
+    }
+    let folder = existing;
+    if (!folder) {
+      try {
+        folder = await request("/api/folders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, parent_id: parentId || null, description: "", tags: [] }),
+        });
+      } catch (error) {
+        // Another request or an earlier upload may have created it between
+        // the lookup and POST. Reload before reporting a real failure.
+        if (!String(error.message || "").includes("已存在")) throw error;
+        const allFolders = await request("/api/folders");
+        folder = allFolders.find((candidate) => candidate.parent_id === (parentId || null) && candidate.name === name);
+        if (!folder) throw error;
+        cacheFolders(allFolders);
+      }
+    }
     folderIds.set(key, folder.id);
     return folder.id;
   };
