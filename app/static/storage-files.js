@@ -56,12 +56,36 @@ function uploadWithProgress(url, form, { onProgress = () => {} } = {}) {
       let payload = {};
       try { payload = JSON.parse(xhr.responseText || "{}"); } catch {}
       if (xhr.status >= 200 && xhr.status < 300) resolve(payload);
-      else reject(new Error(payload.detail || `上传失败（${xhr.status}）`));
+      else {
+        const error = new Error(payload.detail || `上传失败（HTTP ${xhr.status}）`);
+        error.status = xhr.status;
+        error.retryable = xhr.status === 408 || xhr.status === 429 || xhr.status >= 500;
+        reject(error);
+      }
     });
-    xhr.addEventListener("error", () => reject(new Error("网络连接中断，上传失败。")));
+    xhr.addEventListener("error", () => {
+      const error = new Error("网络连接中断，上传失败。");
+      error.retryable = true;
+      reject(error);
+    });
     xhr.addEventListener("abort", () => reject(new Error("上传已取消。")));
     xhr.send(form);
   });
+}
+
+async function uploadWithRetry(url, form, options = {}, maxAttempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await uploadWithProgress(url, form, options);
+    } catch (error) {
+      lastError = error;
+      if (!error.retryable || attempt === maxAttempts) throw error;
+      options.onRetry?.(attempt + 1, maxAttempts, error);
+      await new Promise((resolve) => window.setTimeout(resolve, 800 * attempt));
+    }
+  }
+  throw lastError;
 }
 
 function showUploadProgress(label, count, value = 0) {
@@ -466,39 +490,48 @@ async function uploadFolderFiles(fileList) {
   closeUploadChoice();
   showUploadProgress("正在准备上传...", `0 / ${files.length} 个文件`);
   pageError.textContent = "";
+  let completed = 0;
+  const failed = [];
   try {
-    let completed = 0;
     for (const file of files) {
       const relativePath = String(file.webkitRelativePath || file.name).replaceAll("\\", "/");
       const parts = relativePath.split("/").filter(Boolean);
       const fileName = parts.pop() || file.name;
-      let parentId = currentFolderId || null;
-      for (const folderName of parts) parentId = await getOrCreateFolder(folderName, parentId);
-      const form = new FormData();
-      form.append("file", file, fileName);
-      form.set("title", fileName.replace(/\.[^.]+$/, ""));
-      form.set("description", "");
-      form.set("version", "1.0");
-      form.set("group_id", parentId || "");
-      form.set("tags", "[]");
-      uploadProgressLabel.textContent = `正在上传：${fileName}`;
-      await uploadWithProgress("/api/files", form, {
-        onProgress: (loaded, total) => {
-          const filePercent = Math.min(100, loaded / total * 100);
-          uploadProgressBar.value = Math.round(((completed + filePercent / 100) / files.length) * 100);
-          uploadProgressCount.textContent = `${completed} / ${files.length} 个文件 · ${Math.round(filePercent)}%`;
-        },
-      });
-      completed += 1;
-      uploadProgressBar.value = Math.round((completed / files.length) * 100);
-      uploadProgressCount.textContent = `${completed} / ${files.length} 个文件`;
+      try {
+        let parentId = currentFolderId || null;
+        for (const folderName of parts) parentId = await getOrCreateFolder(folderName, parentId);
+        const form = new FormData();
+        form.append("file", file, fileName);
+        form.set("title", fileName.replace(/\.[^.]+$/, ""));
+        form.set("description", "");
+        form.set("version", "1.0");
+        form.set("group_id", parentId || "");
+        form.set("tags", "[]");
+        uploadProgressLabel.textContent = `正在上传：${fileName}`;
+        await uploadWithRetry("/api/files", form, {
+          onProgress: (loaded, total) => {
+            const filePercent = total ? Math.min(100, loaded / total * 100) : 0;
+            uploadProgressBar.value = Math.round(((completed + filePercent / 100) / files.length) * 100);
+            uploadProgressCount.textContent = `${completed} / ${files.length} 个文件 · ${Math.round(filePercent)}%`;
+          },
+          onRetry: (attempt, maxAttempts, error) => {
+            uploadProgressLabel.textContent = `${fileName} 上传失败，正在重试（${attempt}/${maxAttempts}）`;
+            uploadProgressCount.textContent = error.message;
+          },
+        });
+      } catch (error) {
+        failed.push({ name: relativePath, message: error.message });
+      } finally {
+        completed += 1;
+        uploadProgressBar.value = Math.round((completed / files.length) * 100);
+        uploadProgressCount.textContent = `${completed} / ${files.length} 个文件${failed.length ? ` · 失败 ${failed.length} 个` : ""}`;
+      }
     }
-    uploadProgressLabel.textContent = "上传完成";
-    pageError.textContent = `文件夹上传完成，共 ${files.length} 个文件。`;
-    await loadItems();
-  } catch (error) {
-    uploadProgressLabel.textContent = "上传未完成";
-    pageError.textContent = `文件夹上传未完成：${error.message}`;
+    uploadProgressLabel.textContent = failed.length ? "上传完成，但有文件失败" : "上传完成";
+    if (failed.length) {
+      const details = failed.slice(0, 8).map((item) => `${item.name}：${item.message}`).join("；");
+      pageError.textContent = `文件夹上传完成：成功 ${files.length - failed.length} 个，失败 ${failed.length} 个。${details}${failed.length > 8 ? "（其余失败文件请查看服务端日志或重新单独上传）" : ""}`;
+    } else pageError.textContent = `文件夹上传完成，共 ${files.length} 个文件。`;
     await loadItems();
   } finally {
     uploadProgressModal.classList.add("hidden");
@@ -575,11 +608,15 @@ metadataForm.addEventListener("submit", async (event) => {
       showUploadProgress(`正在上传：${fileName}`, `0 / 1 个文件 · 0%`);
       pageError.textContent = "";
       try {
-        await uploadWithProgress("/api/files", values, {
+        await uploadWithRetry("/api/files", values, {
           onProgress: (loaded, total) => {
             const percent = Math.min(100, Math.round(loaded / total * 100));
             uploadProgressBar.value = percent;
             uploadProgressCount.textContent = `0 / 1 个文件 · ${percent}%`;
+          },
+          onRetry: (attempt, maxAttempts, error) => {
+            uploadProgressLabel.textContent = `上传失败，正在重试（${attempt}/${maxAttempts}）`;
+            uploadProgressCount.textContent = error.message;
           },
         });
         uploadProgressBar.value = 100;

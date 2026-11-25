@@ -60,6 +60,9 @@ class StoragePreviewTests(unittest.TestCase):
         self.assertIn("正在接收 PDF", storage_script)
         self.assertIn("正在加载预览", storage_script)
         self.assertIn("response.body.getReader()", storage_script)
+        self.assertIn("uploadWithRetry", storage_script)
+        self.assertIn("失败 ${failed.length} 个", storage_script)
+        self.assertIn("正在重试", storage_script)
 
 
 if __name__ == "__main__":
