@@ -490,7 +490,7 @@ async function uploadFolderFiles(fileList) {
         folder = await request("/api/folders", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, parent_id: parentId || null, description: "", tags: [] }),
+          body: JSON.stringify({ name, parent_id: parentId || null, description: "", tags: [], reuse_existing: true }),
         });
       } catch (error) {
         // Another request or an earlier upload may have created it between

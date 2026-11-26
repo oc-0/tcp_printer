@@ -833,7 +833,7 @@ class Repository:
                 connection.execute("INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)", (tag_id, tag_name, iso_now()))
             connection.execute("INSERT INTO folder_tags (folder_id, tag_id) VALUES (?, ?)", (folder_id, tag_id))
 
-    def create_folder(self, name: str, parent_id: Optional[str] = None, description: str = "", tags: Optional[list[str]] = None) -> dict:
+    def create_folder(self, name: str, parent_id: Optional[str] = None, description: str = "", tags: Optional[list[str]] = None, reuse_existing: bool = False) -> dict:
         name = name.strip()
         if not name:
             raise RepositoryError("文件夹名称不能为空。")
@@ -843,6 +843,13 @@ class Repository:
             with self._connection() as connection:
                 if parent_id and not connection.execute("SELECT 1 FROM groups WHERE id = ? AND deleted_at IS NULL", (parent_id,)).fetchone():
                     raise RepositoryError("父文件夹不存在。")
+                if reuse_existing:
+                    existing = connection.execute(
+                        "SELECT * FROM groups WHERE name = ? AND deleted_at IS NULL AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))",
+                        (name, parent_id, parent_id),
+                    ).fetchone()
+                    if existing:
+                        return self._folder_payload(connection, existing)
                 connection.execute("INSERT INTO groups (id, name, parent_id, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", (folder_id, name, parent_id or None, description.strip()[:2000], now, now))
                 self._replace_folder_tags(connection, folder_id, tags or [])
                 self._audit(connection, "folder.create", details=name)

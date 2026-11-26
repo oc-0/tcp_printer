@@ -126,6 +126,7 @@ class FolderMetadata(BaseModel):
     description: str = ""
     tags: list[str] = Field(default_factory=list)
     parent_id: Optional[str] = None
+    reuse_existing: bool = False
 
 
 class AdminAccountCreate(BaseModel):
@@ -790,6 +791,7 @@ async def create_repository_folder(payload: FolderMetadata, request: Request):
             payload.parent_id,
             payload.description,
             payload.tags,
+            payload.reuse_existing,
         )
     except RepositoryError as error:
         raise repository_error(error) from error

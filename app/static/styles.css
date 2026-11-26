@@ -124,6 +124,7 @@ legend, .form-row label { display: block; margin-bottom: 9px; color: var(--muted
 .stepper input { width: 44px; height: 34px; border: 0; border-right: 1px solid var(--border); border-left: 1px solid var(--border); background: transparent; color: var(--text); text-align: center; }
 #page-range { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-deep); color: var(--text); }
 #page-range::placeholder { color: #6e7681; }
+.page-range-hint { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
 .error-text { color: var(--danger); margin-top: 6px; }
 .read-only-row, .job-summary { display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--border); }
 .read-only-row span, .job-summary span { color: var(--muted); }

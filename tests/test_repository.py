@@ -148,6 +148,18 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(root_items[0]["type"], "folder")
         self.assertEqual(root_items[0]["name"], "硬件归档")
 
+    def test_upload_folder_creation_reuses_same_name_under_same_parent(self):
+        elsewhere = self.repository.create_folder("项目")
+        existing = self.repository.create_folder("相册", parent_id=elsewhere["id"])
+        reused = self.repository.create_folder("相册", parent_id=elsewhere["id"], reuse_existing=True)
+        other_parent = self.repository.create_folder("其他项目")
+        separate = self.repository.create_folder("相册", parent_id=other_parent["id"], reuse_existing=True)
+        self.assertEqual(reused["id"], existing["id"])
+        self.assertEqual(separate["parent_id"], other_parent["id"])
+        self.assertNotEqual(separate["id"], existing["id"])
+        with self.assertRaisesRegex(RepositoryError, "已存在"):
+            self.repository.create_folder("相册", parent_id=elsewhere["id"])
+
     def test_list_items_supports_pagination(self):
         root = Path(self.directory.name)
         for name in ("a.pdf", "b.pdf", "c.pdf"):
