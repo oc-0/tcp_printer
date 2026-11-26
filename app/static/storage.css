@@ -34,7 +34,8 @@
 .storage-folder-actions { display: flex; gap: 1px; opacity: 0; }
 .storage-folder-row-wrap:hover .storage-folder-actions, .storage-folder-row-wrap.selected .storage-folder-actions { opacity: 1; }
 .storage-folder-actions .icon-button { padding: 3px 4px; color: var(--muted); font-size: 10px; }
-.storage-file-list, .storage-detail-panel { min-width: 0; border: 1px solid var(--border); background: var(--surface); border-radius: 4px; overflow: hidden; }
+.storage-file-list, .storage-detail-panel { min-width: 0; border: 1px solid var(--border); background: var(--surface); border-radius: 4px; }
+.storage-file-list { overflow: hidden; }
 .storage-list-heading { display: flex; justify-content: space-between; padding: 10px 14px; color: var(--text); background: var(--surface-raised); border-bottom: 1px solid var(--border); font-size: 13px; font-weight: 600; }
 .storage-list-heading span:last-child { width: 92px; color: var(--muted); text-align: right; font-weight: 400; }
 .storage-list-body { display: grid; }
@@ -46,7 +47,7 @@
 .storage-file-row.selected { color: var(--primary); background: rgba(221, 244, 255, .55); }
 .storage-file-row time { flex: 0 0 92px; color: var(--muted); text-align: right; font-size: 12px; }
 .storage-file-icon { display: inline-block; width: 20px; color: var(--muted); }
-.storage-detail-panel { padding: 16px; display: flex; flex-direction: column; gap: 18px; }
+.storage-detail-panel { position: static; align-self: start; overflow: visible; padding: 16px; display: flex; flex-direction: column; gap: 18px; }
 .storage-detail-panel h2 { margin: 0; padding-bottom: 12px; border-bottom: 1px solid var(--border); font-size: 15px; overflow-wrap: anywhere; }
 .storage-detail-group { display: grid; gap: 6px; }
 .storage-detail-group strong { color: var(--muted); font-size: 12px; font-weight: 600; }
