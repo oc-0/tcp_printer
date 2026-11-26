@@ -845,10 +845,16 @@ class Repository:
                     raise RepositoryError("父文件夹不存在。")
                 if reuse_existing:
                     existing = connection.execute(
-                        "SELECT * FROM groups WHERE name = ? AND deleted_at IS NULL AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))",
+                        "SELECT * FROM groups WHERE name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL)) ORDER BY deleted_at IS NOT NULL",
                         (name, parent_id, parent_id),
                     ).fetchone()
                     if existing:
+                        if existing["deleted_at"] is not None:
+                            connection.execute(
+                                "UPDATE groups SET deleted_at = NULL, updated_at = ? WHERE id = ?",
+                                (now, existing["id"]),
+                            )
+                            existing = connection.execute("SELECT * FROM groups WHERE id = ?", (existing["id"],)).fetchone()
                         return self._folder_payload(connection, existing)
                 connection.execute("INSERT INTO groups (id, name, parent_id, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", (folder_id, name, parent_id or None, description.strip()[:2000], now, now))
                 self._replace_folder_tags(connection, folder_id, tags or [])
@@ -859,10 +865,16 @@ class Repository:
             if reuse_existing:
                 with self._connection() as connection:
                     existing = connection.execute(
-                        "SELECT * FROM groups WHERE name = ? AND deleted_at IS NULL AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))",
+                        "SELECT * FROM groups WHERE name = ? AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL)) ORDER BY deleted_at IS NOT NULL",
                         (name, parent_id, parent_id),
                     ).fetchone()
                     if existing:
+                        if existing["deleted_at"] is not None:
+                            connection.execute(
+                                "UPDATE groups SET deleted_at = NULL, updated_at = ? WHERE id = ?",
+                                (iso_now(), existing["id"]),
+                            )
+                            existing = connection.execute("SELECT * FROM groups WHERE id = ?", (existing["id"],)).fetchone()
                         return self._folder_payload(connection, existing)
             raise RepositoryError("同一目录下已存在同名文件夹。") from error
 

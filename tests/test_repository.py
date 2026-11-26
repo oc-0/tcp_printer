@@ -164,6 +164,13 @@ class RepositoryTests(unittest.TestCase):
         with self.assertRaisesRegex(RepositoryError, "父文件夹不存在"):
             self.repository.create_folder("相册", parent_id="missing-parent", reuse_existing=True)
 
+    def test_upload_folder_creation_reuses_deleted_folder_name(self):
+        folder = self.repository.create_folder("旧相册")
+        self.repository.delete_folder(folder["id"])
+        reused = self.repository.create_folder("旧相册", reuse_existing=True)
+        self.assertEqual(reused["id"], folder["id"])
+        self.assertIsNone(reused["deleted_at"])
+
     def test_list_items_supports_pagination(self):
         root = Path(self.directory.name)
         for name in ("a.pdf", "b.pdf", "c.pdf"):
