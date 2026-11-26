@@ -856,7 +856,15 @@ class Repository:
                 row = connection.execute("SELECT * FROM groups WHERE id = ?", (folder_id,)).fetchone()
                 return self._folder_payload(connection, row)
         except sqlite3.IntegrityError as error:
-            raise RepositoryError("文件夹已存在或父文件夹不存在。") from error
+            if reuse_existing:
+                with self._connection() as connection:
+                    existing = connection.execute(
+                        "SELECT * FROM groups WHERE name = ? AND deleted_at IS NULL AND (parent_id = ? OR (parent_id IS NULL AND ? IS NULL))",
+                        (name, parent_id, parent_id),
+                    ).fetchone()
+                    if existing:
+                        return self._folder_payload(connection, existing)
+            raise RepositoryError("同一目录下已存在同名文件夹。") from error
 
     def update_folder(self, folder_id: str, name: str, parent_id: Optional[str] = None, description: str = "", tags: Optional[list[str]] = None) -> dict:
         name = name.strip()
@@ -877,7 +885,7 @@ class Repository:
                 row = connection.execute("SELECT * FROM groups WHERE id = ?", (folder_id,)).fetchone()
                 return self._folder_payload(connection, row)
         except sqlite3.IntegrityError as error:
-            raise RepositoryError("文件夹已存在或父文件夹不存在。") from error
+            raise RepositoryError("同一目录下已存在同名文件夹，或目标父文件夹已失效。") from error
 
     def delete_folder(self, folder_id: str) -> None:
         with self._connection() as connection:

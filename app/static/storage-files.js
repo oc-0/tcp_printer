@@ -474,35 +474,30 @@ async function uploadFolderFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
   const folderIds = new Map();
+  const folderErrors = new Map();
+  let folderIndex = new Map();
   const folderKey = (parentId, name) => `${parentId || "root"}/${name}`;
   const getOrCreateFolder = async (name, parentId) => {
     const key = folderKey(parentId, name);
     if (folderIds.has(key)) return folderIds.get(key);
-    let existing = folders.find((folder) => folder.parent_id === (parentId || null) && folder.name === name);
-    if (!existing) {
-      const allFolders = await request("/api/folders");
-      existing = allFolders.find((folder) => folder.parent_id === (parentId || null) && folder.name === name);
-      if (existing) cacheFolders(allFolders);
-    }
+    if (folderErrors.has(key)) throw folderErrors.get(key);
+    const existing = folderIndex.get(key);
     let folder = existing;
-    if (!folder) {
-      try {
+    try {
+      if (!folder) {
         folder = await request("/api/folders", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name, parent_id: parentId || null, description: "", tags: [], reuse_existing: true }),
         });
-      } catch (error) {
-        // Another request or an earlier upload may have created it between
-        // the lookup and POST. Reload before reporting a real failure.
-        if (!String(error.message || "").includes("已存在")) throw error;
-        const allFolders = await request("/api/folders");
-        folder = allFolders.find((candidate) => candidate.parent_id === (parentId || null) && candidate.name === name);
-        if (!folder) throw error;
-        cacheFolders(allFolders);
       }
+    } catch (error) {
+      folderErrors.set(key, error);
+      throw error;
     }
     folderIds.set(key, folder.id);
+    folderIndex.set(key, folder);
+    cacheFolders([folder]);
     return folder.id;
   };
   closeUploadChoice();
@@ -511,6 +506,12 @@ async function uploadFolderFiles(fileList) {
   let completed = 0;
   const failed = [];
   try {
+    const allFolders = await request("/api/folders");
+    cacheFolders(allFolders);
+    folderIndex = new Map(allFolders.map((folder) => [folderKey(folder.parent_id, folder.name), folder]));
+    if (currentFolderId && !allFolders.some((folder) => folder.id === currentFolderId)) {
+      throw new Error("目前所在的父文件夹已不存在或已删除。请返回资料库根目录后重新上传。没有文件被上传。");
+    }
     for (const file of files) {
       const relativePath = String(file.webkitRelativePath || file.name).replaceAll("\\", "/");
       const parts = relativePath.split("/").filter(Boolean);
@@ -550,6 +551,10 @@ async function uploadFolderFiles(fileList) {
       const details = failed.slice(0, 8).map((item) => `${item.name}：${item.message}`).join("；");
       pageError.textContent = `文件夹上传完成：成功 ${files.length - failed.length} 个，失败 ${failed.length} 个。${details}${failed.length > 8 ? "（其余失败文件请查看服务端日志或重新单独上传）" : ""}`;
     } else pageError.textContent = `文件夹上传完成，共 ${files.length} 个文件。`;
+    await loadItems();
+  } catch (error) {
+    uploadProgressLabel.textContent = "文件夹上传无法开始";
+    pageError.textContent = error.message;
     await loadItems();
   } finally {
     uploadProgressModal.classList.add("hidden");

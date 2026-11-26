@@ -157,8 +157,12 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(reused["id"], existing["id"])
         self.assertEqual(separate["parent_id"], other_parent["id"])
         self.assertNotEqual(separate["id"], existing["id"])
-        with self.assertRaisesRegex(RepositoryError, "已存在"):
+        with self.assertRaisesRegex(RepositoryError, "同一目录下已存在同名文件夹"):
             self.repository.create_folder("相册", parent_id=elsewhere["id"])
+
+    def test_folder_creation_reports_invalid_parent_separately(self):
+        with self.assertRaisesRegex(RepositoryError, "父文件夹不存在"):
+            self.repository.create_folder("相册", parent_id="missing-parent", reuse_existing=True)
 
     def test_list_items_supports_pagination(self):
         root = Path(self.directory.name)
